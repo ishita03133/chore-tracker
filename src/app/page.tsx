@@ -123,6 +123,39 @@ export default function Home() {
     setIsAddingChore(false);
   };
 
+  /* ============================================
+     FUNCTION - Toggle Chore Completion
+     ============================================
+     This function toggles a chore's completed status between true and false.
+     
+     State changes explained:
+     - setChores: Updates the specific chore's completed property
+       - Uses .map() to create a new array (React needs new references to detect changes)
+       - Finds the chore with matching ID
+       - Creates a new chore object with toggled completed status
+       - Keeps all other chores unchanged
+       - React detects the change and re-renders with updated styling
+  */
+  const handleToggleChore = (choreId: number) => {
+    // Update the chores array by mapping over each chore
+    setChores(
+      chores.map((chore) => {
+        // If this is the chore we want to toggle
+        if (chore.id === choreId) {
+          // Return a new chore object with toggled completed status
+          // Spread operator (...) copies all existing properties
+          // Then we override just the completed property
+          return {
+            ...chore,
+            completed: !chore.completed, // Toggle: true becomes false, false becomes true
+          };
+        }
+        // Return unchanged chore if ID doesn't match
+        return chore;
+      })
+    );
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
       {/* Main content container with centered layout and max width */}
@@ -229,17 +262,74 @@ export default function Home() {
             )}
           </div>
         ) : (
-          /* This section shows when chores exist */
-          /* The empty state automatically disappears because chores.length > 0 */
+          /* ============================================
+             CHORE LIST DISPLAY
+             ============================================
+             This section renders the list of chores when they exist.
+             
+             How it works:
+             - Uses .map() to loop through the chores array
+             - Each chore is rendered as a list item with checkbox and title
+             - Checkbox state is controlled by chore.completed
+             - Completed chores are styled with line-through and muted colors
+             
+             Accessibility:
+             - Uses semantic <label> element to associate checkbox with text
+             - Proper checkbox input with accessible attributes
+             - Clear visual feedback for completed state
+          */
           <div className="w-full">
-            {/* Placeholder for future chore list display */}
-            <p className="text-zinc-600 dark:text-zinc-400">
-              Chores list will appear here (coming soon)
-            </p>
-            {/* Show count for now */}
-            <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-2">
-              {chores.length} {chores.length === 1 ? "chore" : "chores"} created
-            </p>
+            {/* List of chores */}
+            <ul className="space-y-3" role="list">
+              {chores.map((chore) => (
+                <li
+                  key={chore.id}
+                  className="flex items-start gap-3 p-4 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  {/* Checkbox input */}
+                  {/* 
+                    Accessibility notes:
+                    - id is unique for each chore (using chore.id)
+                    - checked state is controlled by chore.completed
+                    - onChange handler toggles the completion status
+                    - aria-label provides context for screen readers
+                  */}
+                  <input
+                    type="checkbox"
+                    id={`chore-${chore.id}`}
+                    checked={chore.completed}
+                    onChange={() => {
+                      // State change: Toggle this chore's completed status
+                      // handleToggleChore updates the state, React re-renders,
+                      // and the checkbox + styling update automatically
+                      handleToggleChore(chore.id);
+                    }}
+                    aria-label={`Mark "${chore.title}" as ${chore.completed ? "incomplete" : "complete"}`}
+                    className="mt-1 w-5 h-5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
+                  />
+                  
+                  {/* Chore title label */}
+                  {/* 
+                    Accessibility notes:
+                    - htmlFor links the label to the checkbox
+                    - Clicking the label text also toggles the checkbox
+                    - Conditional styling shows completed state visually
+                  */}
+                  <label
+                    htmlFor={`chore-${chore.id}`}
+                    className={`flex-1 cursor-pointer ${
+                      chore.completed
+                        ? // Completed styling: crossed out and muted colors
+                          "line-through text-zinc-400 dark:text-zinc-500"
+                        : // Incomplete styling: normal colors
+                          "text-black dark:text-zinc-50"
+                    }`}
+                  >
+                    {chore.title}
+                  </label>
+                </li>
+              ))}
+            </ul>
           </div>
         )}
       </main>
