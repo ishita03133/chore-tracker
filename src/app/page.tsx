@@ -79,6 +79,14 @@ export default function Home() {
   // This is separate from the chores array - it's just temporary input
   const [newChoreTitle, setNewChoreTitle] = useState("");
 
+  // State to control whether the "add category" input form is visible
+  // When true, the input form is shown; when false, it's hidden
+  const [isAddingCategory, setIsAddingCategory] = useState(false);
+
+  // State to store the text the user is typing for a new category name
+  // This is separate from the categories array - it's just temporary input
+  const [newCategoryName, setNewCategoryName] = useState("");
+
   /* ============================================
      FUNCTION - Add New Chore
      ============================================
@@ -152,6 +160,92 @@ export default function Home() {
         }
         // Return unchanged chore if ID doesn't match
         return chore;
+      })
+    );
+  };
+
+  /* ============================================
+     FUNCTION - Add New Category
+     ============================================
+     This function creates a new category and adds it to the categories array.
+     
+     State changes explained:
+     1. setCategories: Adds the new category to the array
+        - Uses spread operator (...) to copy existing categories
+        - Adds the new category at the end
+        - React detects this change and re-renders the component
+     
+     2. setNewCategoryName: Clears the input field
+        - Resets to empty string so user can type a new category
+     
+     3. setIsAddingCategory: Hides the input form
+        - Sets to false to hide the form after submission
+  */
+  const handleAddCategory = () => {
+    // Don't add empty categories - check if there's actual text
+    if (newCategoryName.trim() === "") {
+      return; // Exit early if input is empty
+    }
+
+    // Create a new category object with all required properties
+    const newCategory: Category = {
+      id: Date.now(), // Use current timestamp as unique ID (simple approach)
+      name: newCategoryName.trim(), // Remove extra spaces from start/end
+      isOpen: true, // New categories start as open (expanded) by default
+      assigneeIds: [], // No assignee restrictions yet - empty array
+    };
+
+    // Update state: Add the new category to the array
+    // Spread operator (...) copies all existing categories, then adds the new one
+    setCategories([...categories, newCategory]);
+
+    // Clear the input field
+    setNewCategoryName("");
+
+    // Hide the input form
+    setIsAddingCategory(false);
+  };
+
+  /* ============================================
+     FUNCTION - Toggle Category Accordion
+     ============================================
+     This function toggles a category's isOpen status (accordion expand/collapse).
+     
+     ACCORDION LOGIC EXPLAINED:
+     - An accordion is a UI pattern where sections can be expanded or collapsed
+     - When isOpen is true: The category section is expanded (chores are visible)
+     - When isOpen is false: The category section is collapsed (chores are hidden)
+     - Clicking the category header toggles between these two states
+     - Multiple categories can be open at the same time (each has its own isOpen state)
+     
+     STATE UPDATE EXPLAINED SIMPLY:
+     1. User clicks category header
+     2. handleToggleCategory is called with the category's ID
+     3. setCategories updates the state:
+        - Finds the category with matching ID
+        - Flips isOpen: true → false, or false → true
+        - Creates a new array (React needs this to detect changes)
+        - Other categories stay unchanged
+     4. React re-renders the component
+     5. The chevron rotates and the chore list shows/hides based on the new isOpen value
+  */
+  const handleToggleCategory = (categoryId: number) => {
+    // Update the categories array by mapping over each category
+    setCategories(
+      categories.map((category) => {
+        // If this is the category we want to toggle
+        if (category.id === categoryId) {
+          // Return a new category object with toggled isOpen status
+          // Spread operator (...) copies all existing properties
+          // Then we override just the isOpen property
+          return {
+            ...category,
+            isOpen: !category.isOpen, // Toggle: true becomes false, false becomes true
+          };
+        }
+        // Return unchanged category if ID doesn't match
+        // This allows multiple categories to have independent open/closed states
+        return category;
       })
     );
   };
@@ -263,73 +357,258 @@ export default function Home() {
           </div>
         ) : (
           /* ============================================
-             CHORE LIST DISPLAY
+             CHORE LIST DISPLAY WITH CATEGORIES
              ============================================
-             This section renders the list of chores when they exist.
+             This section renders chores organized by categories using accordion sections.
              
-             How it works:
-             - Uses .map() to loop through the chores array
-             - Each chore is rendered as a list item with checkbox and title
-             - Checkbox state is controlled by chore.completed
-             - Completed chores are styled with line-through and muted colors
+             ACCORDION LOGIC EXPLAINED:
+             1. Grouping: Chores are grouped by their categoryId
+                - Chores with a categoryId appear under that category
+                - Chores without a categoryId (undefined) appear in "Uncategorized"
              
-             Accessibility:
-             - Uses semantic <label> element to associate checkbox with text
-             - Proper checkbox input with accessible attributes
-             - Clear visual feedback for completed state
+             2. Accordion Behavior:
+                - Each category has an isOpen property (true/false)
+                - When isOpen is true: Category section is expanded, chores are visible
+                - When isOpen is false: Category section is collapsed, chores are hidden
+                - Clicking the category header toggles isOpen
+                - No animations yet - just instant show/hide
+             
+             3. Rendering Flow:
+                - First, render all categories with their assigned chores
+                - Then, render uncategorized chores in a default section
+                - Each section can be independently expanded/collapsed
           */
-          <div className="w-full">
-            {/* List of chores */}
-            <ul className="space-y-3" role="list">
-              {chores.map((chore) => (
-                <li
-                  key={chore.id}
-                  className="flex items-start gap-3 p-4 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+          <div className="w-full space-y-4">
+            {/* Button to add a new category */}
+            <div className="mb-4">
+              {!isAddingCategory ? (
+                <button
+                  onClick={() => {
+                    // State change: Show the category input form
+                    setIsAddingCategory(true);
+                  }}
+                  className="px-4 py-2 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-black dark:text-zinc-50 rounded-lg transition-colors text-sm font-medium"
                 >
-                  {/* Checkbox input */}
-                  {/* 
-                    Accessibility notes:
-                    - id is unique for each chore (using chore.id)
-                    - checked state is controlled by chore.completed
-                    - onChange handler toggles the completion status
-                    - aria-label provides context for screen readers
-                  */}
+                  + Add Category
+                </button>
+              ) : (
+                <div className="flex gap-2">
                   <input
-                    type="checkbox"
-                    id={`chore-${chore.id}`}
-                    checked={chore.completed}
-                    onChange={() => {
-                      // State change: Toggle this chore's completed status
-                      // handleToggleChore updates the state, React re-renders,
-                      // and the checkbox + styling update automatically
-                      handleToggleChore(chore.id);
+                    type="text"
+                    value={newCategoryName}
+                    onChange={(e) => {
+                      // State change: Update the input value as user types
+                      setNewCategoryName(e.target.value);
                     }}
-                    aria-label={`Mark "${chore.title}" as ${chore.completed ? "incomplete" : "complete"}`}
-                    className="mt-1 w-5 h-5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
+                    onKeyDown={(e) => {
+                      // Allow submitting by pressing Enter key
+                      if (e.key === "Enter") {
+                        handleAddCategory();
+                      }
+                      // Allow canceling by pressing Escape key
+                      if (e.key === "Escape") {
+                        setIsAddingCategory(false);
+                        setNewCategoryName("");
+                      }
+                    }}
+                    placeholder="Enter category name..."
+                    autoFocus
+                    className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                   />
-                  
-                  {/* Chore title label */}
-                  {/* 
-                    Accessibility notes:
-                    - htmlFor links the label to the checkbox
-                    - Clicking the label text also toggles the checkbox
-                    - Conditional styling shows completed state visually
-                  */}
-                  <label
-                    htmlFor={`chore-${chore.id}`}
-                    className={`flex-1 cursor-pointer ${
-                      chore.completed
-                        ? // Completed styling: crossed out and muted colors
-                          "line-through text-zinc-400 dark:text-zinc-500"
-                        : // Incomplete styling: normal colors
-                          "text-black dark:text-zinc-50"
-                    }`}
+                  <button
+                    onClick={handleAddCategory}
+                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
                   >
-                    {chore.title}
-                  </label>
-                </li>
-              ))}
-            </ul>
+                    Add
+                  </button>
+                  <button
+                    onClick={() => {
+                      // State change: Hide the form and clear input
+                      setIsAddingCategory(false);
+                      setNewCategoryName("");
+                    }}
+                    className="px-3 py-2 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-black dark:text-zinc-50 rounded-lg transition-colors text-sm"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Render categories as accordion sections */}
+            {categories.map((category) => {
+              // Filter chores that belong to this category
+              const categoryChores = chores.filter(
+                (chore) => chore.categoryId === category.id
+              );
+
+              // Don't render empty categories
+              if (categoryChores.length === 0) {
+                return null;
+              }
+
+              return (
+                <div
+                  key={category.id}
+                  className="border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 overflow-hidden"
+                >
+                  {/* Category header - clickable to toggle accordion */}
+                  <button
+                    onClick={() => {
+                      // STATE UPDATE: When clicked, toggle this category's visibility
+                      // Step 1: handleToggleCategory flips isOpen (true ↔ false)
+                      // Step 2: React re-renders with new state
+                      // Step 3: Chevron rotates and chore list shows/hides
+                      handleToggleCategory(category.id);
+                    }}
+                    className="w-full flex items-center justify-between p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors text-left"
+                    aria-expanded={category.isOpen}
+                  >
+                    {/* Category name and chore count */}
+                    <div className="flex items-center gap-2">
+                      {/* Chevron icon - rotates based on isOpen state */}
+                      {/* 
+                        ROTATION LOGIC:
+                        - When isOpen is true: Chevron points down (0deg rotation) - section is open
+                        - When isOpen is false: Chevron points right (90deg rotation) - section is closed
+                        - CSS transform rotates the chevron smoothly
+                        - The transition class makes the rotation smooth (no animation yet, but ready for it)
+                      */}
+                      <svg
+                        className={`w-5 h-5 text-zinc-500 dark:text-zinc-400 transition-transform ${
+                          category.isOpen ? "rotate-0" : "-rotate-90"
+                        }`}
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                        aria-hidden="true"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                      <h2 className="text-lg font-semibold text-black dark:text-zinc-50">
+                        {category.name}
+                      </h2>
+                      <span className="text-sm text-zinc-500 dark:text-zinc-400">
+                        ({categoryChores.length})
+                      </span>
+                    </div>
+                  </button>
+
+                  {/* Category content - only visible when isOpen is true */}
+                  {/* 
+                    ACCORDION VISIBILITY LOGIC:
+                    - When category.isOpen is true: This div renders, chores are visible
+                    - When category.isOpen is false: This div doesn't render (conditional rendering)
+                    - Each category's visibility is independent - multiple can be open at once
+                    - The chevron rotation and content visibility both depend on the same isOpen state
+                  */}
+                  {category.isOpen && (
+                    <div className="px-4 pb-4">
+                      <ul className="space-y-2" role="list">
+                        {categoryChores.map((chore) => (
+                          <li
+                            key={chore.id}
+                            className="flex items-start gap-3 p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50 dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+                          >
+                            {/* Checkbox input */}
+                            <input
+                              type="checkbox"
+                              id={`chore-${chore.id}`}
+                              checked={chore.completed}
+                              onChange={() => {
+                                handleToggleChore(chore.id);
+                              }}
+                              aria-label={`Mark "${chore.title}" as ${chore.completed ? "incomplete" : "complete"}`}
+                              className="mt-1 w-5 h-5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
+                            />
+                            
+                            {/* Chore title label */}
+                            <label
+                              htmlFor={`chore-${chore.id}`}
+                              className={`flex-1 cursor-pointer ${
+                                chore.completed
+                                  ? "line-through text-zinc-400 dark:text-zinc-500"
+                                  : "text-black dark:text-zinc-50"
+                              }`}
+                            >
+                              {chore.title}
+                            </label>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+
+            {/* Uncategorized chores section - default section for chores without a category */}
+            {(() => {
+              // Filter chores that don't have a categoryId (undefined or null)
+              const uncategorizedChores = chores.filter(
+                (chore) => !chore.categoryId
+              );
+
+              // Don't render the section if there are no uncategorized chores
+              if (uncategorizedChores.length === 0) {
+                return null;
+              }
+
+              return (
+                <div className="border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 overflow-hidden">
+                  {/* Uncategorized section header */}
+                  <div className="p-4 bg-zinc-100 dark:bg-zinc-800">
+                    <h2 className="text-lg font-semibold text-black dark:text-zinc-50">
+                      Uncategorized
+                      <span className="ml-2 text-sm font-normal text-zinc-500 dark:text-zinc-400">
+                        ({uncategorizedChores.length})
+                      </span>
+                    </h2>
+                  </div>
+
+                  {/* Uncategorized chores list - always visible (no accordion) */}
+                  <div className="px-4 pb-4">
+                    <ul className="space-y-2" role="list">
+                      {uncategorizedChores.map((chore) => (
+                        <li
+                          key={chore.id}
+                          className="flex items-start gap-3 p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50 dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+                        >
+                          {/* Checkbox input */}
+                          <input
+                            type="checkbox"
+                            id={`chore-${chore.id}`}
+                            checked={chore.completed}
+                            onChange={() => {
+                              handleToggleChore(chore.id);
+                            }}
+                            aria-label={`Mark "${chore.title}" as ${chore.completed ? "incomplete" : "complete"}`}
+                            className="mt-1 w-5 h-5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
+                          />
+                          
+                          {/* Chore title label */}
+                          <label
+                            htmlFor={`chore-${chore.id}`}
+                            className={`flex-1 cursor-pointer ${
+                              chore.completed
+                                ? "line-through text-zinc-400 dark:text-zinc-500"
+                                : "text-black dark:text-zinc-50"
+                            }`}
+                          >
+                            {chore.title}
+                          </label>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </main>
