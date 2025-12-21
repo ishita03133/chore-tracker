@@ -70,6 +70,59 @@ export default function Home() {
   // Starting with an empty array - no chores yet
   const [chores, setChores] = useState<Chore[]>([]);
 
+  // State to control whether the "add chore" input form is visible
+  // When true, the input form is shown; when false, it's hidden
+  // This allows us to show/hide the form without losing the input value
+  const [isAddingChore, setIsAddingChore] = useState(false);
+
+  // State to store the text the user is typing for a new chore title
+  // This is separate from the chores array - it's just temporary input
+  const [newChoreTitle, setNewChoreTitle] = useState("");
+
+  /* ============================================
+     FUNCTION - Add New Chore
+     ============================================
+     This function creates a new chore and adds it to the chores array.
+     
+     State changes explained:
+     1. setChores: Adds the new chore to the array
+        - Uses spread operator (...) to copy existing chores
+        - Adds the new chore at the end
+        - React detects this change and re-renders the component
+     
+     2. setNewChoreTitle: Clears the input field
+        - Resets to empty string so user can type a new chore
+     
+     3. setIsAddingChore: Hides the input form
+        - Sets to false to hide the form after submission
+        - The empty state will disappear because chores.length > 0
+  */
+  const handleAddChore = () => {
+    // Don't add empty chores - check if there's actual text
+    if (newChoreTitle.trim() === "") {
+      return; // Exit early if input is empty
+    }
+
+    // Create a new chore object with all required properties
+    const newChore: Chore = {
+      id: Date.now(), // Use current timestamp as unique ID (simple approach)
+      title: newChoreTitle.trim(), // Remove extra spaces from start/end
+      completed: false, // New chores start as not completed
+      assigneeIds: [], // No assignees yet - empty array
+      categoryId: undefined, // No category assigned - optional field
+    };
+
+    // Update state: Add the new chore to the array
+    // Spread operator (...) copies all existing chores, then adds the new one
+    setChores([...chores, newChore]);
+
+    // Clear the input field
+    setNewChoreTitle("");
+
+    // Hide the input form (it will stay hidden because chores.length > 0 now)
+    setIsAddingChore(false);
+  };
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
       {/* Main content container with centered layout and max width */}
@@ -87,44 +140,105 @@ export default function Home() {
             How it works:
             - We check if chores.length === 0 (no chores in the array)
             - If true: Show the empty state with message and button
-            - If false: We would show the list of chores (not implemented yet)
+            - If false: Show the list of chores (or input form if adding)
             
-            The empty state encourages users to get started by:
-            1. Showing a friendly message
-            2. Explaining the collaborative purpose
-            3. Providing a clear call-to-action button
+            State changes explained:
+            - When user clicks "Add your first chore", setIsAddingChore(true)
+              This shows the input form inline
+            - When a chore is added, chores.length becomes > 0
+              This automatically hides the empty state (the condition becomes false)
         */}
         {chores.length === 0 ? (
           /* Empty state - shown when there are no chores */
           <div className="w-full flex flex-col items-center justify-center py-16 px-8">
-            {/* Main empty state message */}
-            <h2 className="text-2xl font-semibold text-black dark:text-zinc-50 mb-4 text-center">
-              No chores yet
-            </h2>
-            
-            {/* Subtext encouraging collaboration */}
-            <p className="text-zinc-600 dark:text-zinc-400 mb-8 text-center max-w-md">
-              Start tracking your household chores and work together to keep things organized!
-            </p>
-            
-            {/* Primary call-to-action button */}
-            {/* Note: This button doesn't do anything yet - it's a placeholder for future functionality */}
-            <button
-              onClick={() => {
-                // Button does nothing yet - functionality will be added later
-                console.log("Add chore button clicked - functionality coming soon!");
-              }}
-              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
-            >
-              Add your first chore
-            </button>
+            {/* Show message and button only if input form is NOT visible */}
+            {!isAddingChore ? (
+              <>
+                {/* Main empty state message */}
+                <h2 className="text-2xl font-semibold text-black dark:text-zinc-50 mb-4 text-center">
+                  No chores yet
+                </h2>
+                
+                {/* Subtext encouraging collaboration */}
+                <p className="text-zinc-600 dark:text-zinc-400 mb-8 text-center max-w-md">
+                  Start tracking your household chores and work together to keep things organized!
+                </p>
+                
+                {/* Primary call-to-action button */}
+                {/* Clicking this reveals the inline input form */}
+                <button
+                  onClick={() => {
+                    // State change: Show the input form
+                    // setIsAddingChore(true) updates the state, React re-renders,
+                    // and the input form appears inline below
+                    setIsAddingChore(true);
+                  }}
+                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                >
+                  Add your first chore
+                </button>
+              </>
+            ) : (
+              /* Inline input form - appears when user clicks "Add your first chore" */
+              <div className="w-full max-w-md">
+                <input
+                  type="text"
+                  value={newChoreTitle}
+                  onChange={(e) => {
+                    // State change: Update the input value as user types
+                    // setNewChoreTitle updates state, React re-renders,
+                    // and the input shows the new text
+                    setNewChoreTitle(e.target.value);
+                  }}
+                  onKeyDown={(e) => {
+                    // Allow submitting by pressing Enter key
+                    if (e.key === "Enter") {
+                      handleAddChore();
+                    }
+                    // Allow canceling by pressing Escape key
+                    if (e.key === "Escape") {
+                      setIsAddingChore(false);
+                      setNewChoreTitle("");
+                    }
+                  }}
+                  placeholder="Enter chore title..."
+                  autoFocus // Automatically focus the input when it appears
+                  className="w-full px-4 py-3 mb-3 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <div className="flex gap-3">
+                  {/* Submit button - creates the chore */}
+                  <button
+                    onClick={handleAddChore}
+                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                  >
+                    Add Chore
+                  </button>
+                  {/* Cancel button - hides the form without creating a chore */}
+                  <button
+                    onClick={() => {
+                      // State change: Hide the form and clear input
+                      setIsAddingChore(false);
+                      setNewChoreTitle("");
+                    }}
+                    className="px-4 py-2 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-black dark:text-zinc-50 rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
-          /* This section will show the list of chores when they exist */
-          /* Not implemented yet - will be added in future updates */
+          /* This section shows when chores exist */
+          /* The empty state automatically disappears because chores.length > 0 */
           <div className="w-full">
+            {/* Placeholder for future chore list display */}
             <p className="text-zinc-600 dark:text-zinc-400">
               Chores list will appear here (coming soon)
+            </p>
+            {/* Show count for now */}
+            <p className="text-sm text-zinc-500 dark:text-zinc-500 mt-2">
+              {chores.length} {chores.length === 1 ? "chore" : "chores"} created
             </p>
           </div>
         )}
