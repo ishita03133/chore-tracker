@@ -2,213 +2,132 @@
 
 import { useState } from "react"; // Import useState hook to manage component state
 
-// Define the structure of a chore
-interface Chore {
-  id: number; // Unique identifier for each chore
-  name: string; // Name/description of the chore
-  assignee: string; // Which person is assigned (either "Person 1" or "Person 2")
-  completedByPerson1: boolean; // Whether Person 1 has completed it
-  completedByPerson2: boolean; // Whether Person 2 has completed it
+/* ============================================
+   DATA MODELS - Type Definitions
+   ============================================
+   These interfaces define the structure of our data.
+   TypeScript uses these to ensure we always use the correct data format.
+*/
+
+// Assignee represents a person who can be assigned to chores
+// Why use an object instead of just a name?
+// - IDs allow us to update a person's name without breaking relationships
+// - We can add more properties later (email, avatar, etc.) without major refactoring
+interface Assignee {
+  id: number; // Unique identifier - used to link chores to people
+  name: string; // Display name (e.g., "Alice", "Bob", "Roommate 1")
 }
 
+// Category groups related chores together (e.g., "Kitchen", "Bathroom", "Outdoor")
+// Why structure it this way?
+// - isOpen: Allows users to collapse/expand categories for better organization
+// - assigneeIds: Lets us filter which people can be assigned to chores in this category
+//   (useful for categories like "Kids' Rooms" where only certain people should be assigned)
+interface Category {
+  id: number; // Unique identifier - used to link chores to categories
+  name: string; // Display name (e.g., "Kitchen", "Bathroom", "Weekly Tasks")
+  isOpen: boolean; // Whether the category is expanded (true) or collapsed (false) in the UI
+  assigneeIds: number[]; // Array of assignee IDs who can be assigned to chores in this category
+}
+
+// Chore represents a single task that needs to be done
+// Why structure it this way?
+// - id: Unique identifier for easy lookup and updates
+// - title: Clear, descriptive name (better than "name" for tasks)
+// - completed: Simple boolean - either done or not done
+// - assigneeIds: Array allows multiple people to be assigned to one chore
+//   (e.g., "Deep clean kitchen" might need 2 people working together)
+// - categoryId: Optional because not all chores need to belong to a category
+//   (Some chores might be one-off tasks that don't fit into a category)
+interface Chore {
+  id: number; // Unique identifier for each chore
+  title: string; // Name/description of the chore (e.g., "Wash dishes", "Take out trash")
+  completed: boolean; // Whether the chore has been completed (true) or not (false)
+  assigneeIds: number[]; // Array of assignee IDs - allows multiple people per chore
+  categoryId?: number; // Optional category ID - some chores don't need categories
+}
+
+/* ============================================
+   REACT STATE - Data Storage
+   ============================================
+   useState hooks store our app's data in memory.
+   When state changes, React automatically re-renders the component.
+*/
+
 export default function Home() {
-  // State to store the list of chores
-  // useState returns [currentValue, functionToUpdateValue]
+  // State to store all assignees (people who can do chores)
+  // We use an array because we'll have multiple people
+  // Starting with an empty array - will be populated later
+  const [assignees, setAssignees] = useState<Assignee[]>([]);
+
+  // State to store all categories (groups of related chores)
+  // Categories help organize chores (e.g., "Kitchen", "Bathroom")
+  // Starting with an empty array - will be populated later
+  const [categories, setCategories] = useState<Category[]>([]);
+
+  // State to store all chores (tasks that need to be done)
+  // This is the main data we'll be displaying and managing
+  // Starting with an empty array - no chores yet
   const [chores, setChores] = useState<Chore[]>([]);
-  
-  // State to store the input value when adding a new chore
-  const [newChoreName, setNewChoreName] = useState("");
-  
-  // State to track which assignee is selected when adding a new chore
-  const [selectedAssignee, setSelectedAssignee] = useState<"Person 1" | "Person 2">("Person 1");
-
-  // Function to add a new chore to the list
-  const addChore = () => {
-    // Only add if there's a name entered
-    if (newChoreName.trim() === "") return;
-    
-    // Create a new chore object
-    const newChore: Chore = {
-      id: Date.now(), // Use current timestamp as unique ID
-      name: newChoreName,
-      assignee: selectedAssignee,
-      completedByPerson1: false, // Initially not completed
-      completedByPerson2: false,
-    };
-    
-    // Add the new chore to the list using setChores
-    // Spread operator (...) copies existing chores and adds the new one
-    setChores([...chores, newChore]);
-    
-    // Clear the input field
-    setNewChoreName("");
-  };
-
-  // Function to toggle completion status for a specific person and chore
-  const toggleCompletion = (choreId: number, person: "Person 1" | "Person 2") => {
-    // Update the chores array
-    setChores(
-      chores.map((chore) => {
-        // Find the chore that matches the ID
-        if (chore.id === choreId) {
-          // Return a new chore object with updated completion status
-          return {
-            ...chore, // Copy all existing properties
-            // Toggle the completion status for the specified person
-            completedByPerson1: person === "Person 1" ? !chore.completedByPerson1 : chore.completedByPerson1,
-            completedByPerson2: person === "Person 2" ? !chore.completedByPerson2 : chore.completedByPerson2,
-          };
-        }
-        // Return unchanged chore if ID doesn't match
-        return chore;
-      })
-    );
-  };
-
-  // Function to delete a chore
-  const deleteChore = (choreId: number) => {
-    // Filter out the chore with the matching ID
-    setChores(chores.filter((chore) => chore.id !== choreId));
-  };
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
+      {/* Main content container with centered layout and max width */}
       <main className="flex min-h-screen w-full max-w-3xl flex-col items-start py-16 px-8 bg-white dark:bg-black">
         {/* Page title */}
         <h1 className="text-4xl font-semibold text-black dark:text-zinc-50 mb-8">
-          Chore Tracker - Ishita
+          Chore Tracker
         </h1>
 
-        {/* Section to add new chores */}
-        <div className="w-full mb-8 px-6 py-4 bg-zinc-100 dark:bg-zinc-900 rounded-lg">
-          <h2 className="text-2xl font-semibold text-black dark:text-zinc-50 mb-4">
-            Add New Chore
-          </h2>
-          
-          {/* Input field for chore name */}
-          <input
-            type="text"
-            value={newChoreName}
-            onChange={(e) => setNewChoreName(e.target.value)} // Update state when user types
-            placeholder="Enter chore name..."
-            className="w-full px-4 py-2 mb-4 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-black dark:text-zinc-50"
-            onKeyDown={(e) => {
-              // Allow adding chore by pressing Enter key
-              if (e.key === "Enter") {
-                addChore();
-              }
-            }}
-          />
-          
-          {/* Radio buttons to select assignee */}
-          <div className="mb-4">
-            <label className="mr-4 text-black dark:text-zinc-50">
-              <input
-                type="radio"
-                value="Person 1"
-                checked={selectedAssignee === "Person 1"}
-                onChange={(e) => {
-                  if (e.target.value === "Person 1" || e.target.value === "Person 2") {
-                    setSelectedAssignee(e.target.value);
-                  }
-                }}
-                className="mr-2"
-              />
-              Person 1
-            </label>
-            <label className="text-black dark:text-zinc-50">
-              <input
-                type="radio"
-                value="Person 2"
-                checked={selectedAssignee === "Person 2"}
-                onChange={(e) => {
-                  if (e.target.value === "Person 1" || e.target.value === "Person 2") {
-                    setSelectedAssignee(e.target.value);
-                  }
-                }}
-                className="mr-2"
-              />
-              Person 2
-            </label>
+        {/* ============================================
+            EMPTY STATE LOGIC
+            ============================================
+            This section shows content when there are no chores.
+            
+            How it works:
+            - We check if chores.length === 0 (no chores in the array)
+            - If true: Show the empty state with message and button
+            - If false: We would show the list of chores (not implemented yet)
+            
+            The empty state encourages users to get started by:
+            1. Showing a friendly message
+            2. Explaining the collaborative purpose
+            3. Providing a clear call-to-action button
+        */}
+        {chores.length === 0 ? (
+          /* Empty state - shown when there are no chores */
+          <div className="w-full flex flex-col items-center justify-center py-16 px-8">
+            {/* Main empty state message */}
+            <h2 className="text-2xl font-semibold text-black dark:text-zinc-50 mb-4 text-center">
+              No chores yet
+            </h2>
+            
+            {/* Subtext encouraging collaboration */}
+            <p className="text-zinc-600 dark:text-zinc-400 mb-8 text-center max-w-md">
+              Start tracking your household chores and work together to keep things organized!
+            </p>
+            
+            {/* Primary call-to-action button */}
+            {/* Note: This button doesn't do anything yet - it's a placeholder for future functionality */}
+            <button
+              onClick={() => {
+                // Button does nothing yet - functionality will be added later
+                console.log("Add chore button clicked - functionality coming soon!");
+              }}
+              className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+            >
+              Add your first chore
+            </button>
           </div>
-          
-          {/* Button to add the chore */}
-          <button
-            onClick={addChore} // Call addChore function when clicked
-            className="px-6 py-2 text-white rounded-lg transition-colors"
-            style={{ backgroundColor: 'rgba(208, 37, 37, 1)' }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(185, 28, 28, 1)'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(208, 37, 37, 1)'}
-          >
-            Add Chore
-          </button>
-        </div>
-
-        {/* List of chores */}
-        <div className="w-full">
-          <h2 className="text-2xl font-semibold text-black dark:text-zinc-50 mb-4">
-            Chores List
-          </h2>
-          
-          {/* Show message if no chores exist */}
-          {chores.length === 0 ? (
-            <p className="text-zinc-600 dark:text-zinc-400">No chores yet. Add one above!</p>
-          ) : (
-            // Map through chores array and render each one
-            <div className="space-y-4">
-              {chores.map((chore) => (
-                <div
-                  key={chore.id} // React needs a unique key for each item in a list
-                  className="p-4 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-zinc-50 dark:bg-zinc-900"
-                >
-                  {/* Chore name and assignee */}
-                  <div className="flex items-center justify-between mb-3">
-                    <div>
-                      <h3 className="text-lg font-semibold text-black dark:text-zinc-50">
-                        {chore.name}
-                      </h3>
-                      <p className="text-sm text-zinc-600 dark:text-zinc-400">
-                        Assigned to: {chore.assignee}
-                      </p>
-                    </div>
-                    {/* Delete button */}
-                    <button
-                      onClick={() => deleteChore(chore.id)}
-                      className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-sm rounded transition-colors"
-                    >
-                      Delete
-                    </button>
-                  </div>
-                  
-                  {/* Completion checkboxes for both people */}
-                  <div className="flex gap-6">
-                    {/* Person 1 checkbox */}
-                    <label className="flex items-center text-black dark:text-zinc-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={chore.completedByPerson1}
-                        onChange={() => toggleCompletion(chore.id, "Person 1")} // Toggle Person 1's completion
-                        className="mr-2 w-4 h-4"
-                      />
-                      Person 1 {chore.completedByPerson1 ? "✓" : ""}
-                    </label>
-                    
-                    {/* Person 2 checkbox */}
-                    <label className="flex items-center text-black dark:text-zinc-50 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={chore.completedByPerson2}
-                        onChange={() => toggleCompletion(chore.id, "Person 2")} // Toggle Person 2's completion
-                        className="mr-2 w-4 h-4"
-                      />
-                      Person 2 {chore.completedByPerson2 ? "✓" : ""}
-                    </label>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+        ) : (
+          /* This section will show the list of chores when they exist */
+          /* Not implemented yet - will be added in future updates */
+          <div className="w-full">
+            <p className="text-zinc-600 dark:text-zinc-400">
+              Chores list will appear here (coming soon)
+            </p>
+          </div>
+        )}
       </main>
     </div>
   );

@@ -1,10 +1,31 @@
+/* ============================================
+   TAILWIND CSS IMPORT
+   ============================================ */
+/* This imports Tailwind CSS, a utility-first CSS framework.
+   Tailwind gives us pre-built classes like "bg-blue-500" and "text-center"
+   that we can use directly in our HTML/JSX instead of writing custom CSS. */
 @import "tailwindcss";
 
+/* ============================================
+   COLOR VARIABLES (LIGHT MODE)
+   ============================================ */
+/* CSS custom properties (variables) let us store values we can reuse.
+   The :root selector means these variables are available everywhere in our app.
+   We use --variable-name format to create custom properties. */
 :root {
+  /* Background color for light mode - white */
   --background: #ffffff;
+  
+  /* Text color for light mode - dark gray */
   --foreground: #171717;
 }
 
+/* ============================================
+   THEME CONFIGURATION
+   ============================================ */
+/* This connects our CSS variables to Tailwind's theme system.
+   Now we can use Tailwind classes that reference these colors,
+   like "bg-background" or "text-foreground". */
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -12,15 +33,33 @@
   --font-mono: var(--font-geist-mono);
 }
 
+/* ============================================
+   DARK MODE SUPPORT
+   ============================================ */
+/* This automatically switches to dark colors when the user's system
+   is set to dark mode. The @media query detects the user's preference. */
 @media (prefers-color-scheme: dark) {
   :root {
+    /* Dark background for dark mode - very dark gray/black */
     --background: #0a0a0a;
+    
+    /* Light text for dark mode - light gray */
     --foreground: #ededed;
   }
 }
 
+/* ============================================
+   BASE STYLES
+   ============================================ */
+/* These styles apply to the entire page (the <body> element).
+   They set the default background, text color, and font for our app. */
 body {
+  /* Use our custom background color variable */
   background: var(--background);
+  
+  /* Use our custom text color variable */
   color: var(--foreground);
+  
+  /* Set a simple, readable font family */
   font-family: Arial, Helvetica, sans-serif;
 }
