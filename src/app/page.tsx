@@ -1,6 +1,6 @@
 "use client"; // This tells Next.js this is a client component (needed for useState and interactivity)
 
-import { useState } from "react"; // Import useState hook to manage component state
+import { useState, useRef, useEffect } from "react"; // Import useState hook to manage component state
 
 /* ============================================
    DATA MODELS - Type Definitions
@@ -69,7 +69,7 @@ export default function Home() {
   // This is the main data we'll be displaying and managing
   // Starting with an empty array - no chores yet
   const [chores, setChores] = useState<Chore[]>([]);
-
+  
   // State to control whether the "add chore" input form is visible
   // When true, the input form is shown; when false, it's hidden
   // This allows us to show/hide the form without losing the input value
@@ -78,7 +78,7 @@ export default function Home() {
   // State to store the text the user is typing for a new chore title
   // This is separate from the chores array - it's just temporary input
   const [newChoreTitle, setNewChoreTitle] = useState("");
-
+  
   // State to control whether the "add category" input form is visible
   // When true, the input form is shown; when false, it's hidden
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -86,6 +86,22 @@ export default function Home() {
   // State to store the text the user is typing for a new category name
   // This is separate from the categories array - it's just temporary input
   const [newCategoryName, setNewCategoryName] = useState("");
+
+  // State to control whether the "add assignee" input form is visible
+  // When true, the input form is shown; when false, it's hidden
+  const [isAddingAssignee, setIsAddingAssignee] = useState(false);
+
+  // State to store the text the user is typing for a new assignee name
+  // This is separate from the assignees array - it's just temporary input
+  const [newAssigneeName, setNewAssigneeName] = useState("");
+
+  // State to track which chore's assignee selector is currently open
+  // When set to a chore ID, that chore's assignee selector is visible
+  // When null, no selector is open
+  const [openAssigneeSelector, setOpenAssigneeSelector] = useState<number | null>(null);
+
+  // State to store the position of the dropdown (for fixed positioning)
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; right: number } | null>(null);
 
   /* ============================================
      FUNCTION - Add New Chore
@@ -110,7 +126,7 @@ export default function Home() {
     if (newChoreTitle.trim() === "") {
       return; // Exit early if input is empty
     }
-
+    
     // Create a new chore object with all required properties
     const newChore: Chore = {
       id: Date.now(), // Use current timestamp as unique ID (simple approach)
@@ -119,11 +135,11 @@ export default function Home() {
       assigneeIds: [], // No assignees yet - empty array
       categoryId: undefined, // No category assigned - optional field
     };
-
+    
     // Update state: Add the new chore to the array
     // Spread operator (...) copies all existing chores, then adds the new one
     setChores([...chores, newChore]);
-
+    
     // Clear the input field
     setNewChoreTitle("");
 
@@ -162,6 +178,62 @@ export default function Home() {
         return chore;
       })
     );
+  };
+
+  /* ============================================
+     FUNCTION - Add New Assignee
+     ============================================
+     This function creates a new assignee and adds it to the assignees array.
+     
+     WHY ASSIGNEES ARE SEPARATE FROM CHORES:
+     - Reusability: One person can be assigned to many chores
+     - Data Normalization: Store person info once, reference by ID
+     - Easy Updates: Change a person's name in one place, updates everywhere
+     - Relationships: Chores reference assignees by ID (assigneeIds array)
+     - Scalability: Can add properties (email, avatar) without touching chores
+     
+     State changes explained:
+     1. setAssignees: Adds the new assignee to the array
+        - Uses spread operator (...) to copy existing assignees
+        - Adds the new assignee at the end
+        - React detects this change and re-renders the component
+     
+     2. setNewAssigneeName: Clears the input field
+        - Resets to empty string so user can type a new assignee
+     
+     3. setIsAddingAssignee: Hides the input form
+        - Sets to false to hide the form after submission
+  */
+  const handleAddAssignee = () => {
+    // Don't add empty assignees - check if there's actual text
+    if (newAssigneeName.trim() === "") {
+      return; // Exit early if input is empty
+    }
+
+    // Check for duplicate names (optional - prevents confusion)
+    const nameExists = assignees.some(
+      (assignee) => assignee.name.toLowerCase() === newAssigneeName.trim().toLowerCase()
+    );
+    if (nameExists) {
+      // Could show an error message here, but keeping it simple for now
+      return; // Exit early if name already exists
+    }
+
+    // Create a new assignee object with all required properties
+    const newAssignee: Assignee = {
+      id: Date.now(), // Use current timestamp as unique ID (simple approach)
+      name: newAssigneeName.trim(), // Remove extra spaces from start/end
+    };
+
+    // Update state: Add the new assignee to the array
+    // Spread operator (...) copies all existing assignees, then adds the new one
+    setAssignees([...assignees, newAssignee]);
+
+    // Clear the input field
+    setNewAssigneeName("");
+
+    // Hide the input form
+    setIsAddingAssignee(false);
   };
 
   /* ============================================
@@ -204,6 +276,58 @@ export default function Home() {
 
     // Hide the input form
     setIsAddingCategory(false);
+  };
+
+  /* ============================================
+     FUNCTION - Toggle Assignee on Chore
+     ============================================
+     This function adds or removes an assignee from a chore's assigneeIds array.
+     
+     STATE UPDATE EXPLAINED SIMPLY:
+     1. User clicks an assignee in the selector
+     2. handleToggleAssignee is called with chore ID and assignee ID
+     3. setChores updates the state:
+        - Finds the chore with matching ID
+        - Checks if assignee ID is already in assigneeIds array
+        - If yes: Removes it (unassign)
+        - If no: Adds it (assign)
+        - Creates a new array (React needs this to detect changes)
+        - Other chores stay unchanged
+     4. React re-renders the component
+     5. The assignee badges update to show the new assignment state
+     
+     MULTIPLE ASSIGNEES:
+     - assigneeIds is an array, so multiple assignees can be assigned
+     - Each assignee can be independently added or removed
+     - The array is updated using filter (remove) or spread (add)
+  */
+  const handleToggleAssignee = (choreId: number, assigneeId: number) => {
+    // Update the chores array by mapping over each chore
+    setChores(
+      chores.map((chore) => {
+        // If this is the chore we want to update
+        if (chore.id === choreId) {
+          // Check if assignee is already assigned
+          const isAssigned = chore.assigneeIds.includes(assigneeId);
+          
+          if (isAssigned) {
+            // Remove assignee: filter out the assignee ID
+            return {
+              ...chore,
+              assigneeIds: chore.assigneeIds.filter((id) => id !== assigneeId),
+            };
+          } else {
+            // Add assignee: spread existing IDs and add the new one
+            return {
+              ...chore,
+              assigneeIds: [...chore.assigneeIds, assigneeId],
+            };
+          }
+        }
+        // Return unchanged chore if ID doesn't match
+        return chore;
+      })
+    );
   };
 
   /* ============================================
@@ -284,8 +408,8 @@ export default function Home() {
                 {/* Main empty state message */}
                 <h2 className="text-2xl font-semibold text-black dark:text-zinc-50 mb-4 text-center">
                   No chores yet
-                </h2>
-                
+          </h2>
+          
                 {/* Subtext encouraging collaboration */}
                 <p className="text-zinc-600 dark:text-zinc-400 mb-8 text-center max-w-md">
                   Start tracking your household chores and work together to keep things organized!
@@ -308,8 +432,8 @@ export default function Home() {
             ) : (
               /* Inline input form - appears when user clicks "Add your first chore" */
               <div className="w-full max-w-md">
-                <input
-                  type="text"
+          <input
+            type="text"
                   value={newChoreTitle}
                   onChange={(e) => {
                     // State change: Update the input value as user types
@@ -317,21 +441,21 @@ export default function Home() {
                     // and the input shows the new text
                     setNewChoreTitle(e.target.value);
                   }}
-                  onKeyDown={(e) => {
+            onKeyDown={(e) => {
                     // Allow submitting by pressing Enter key
-                    if (e.key === "Enter") {
+              if (e.key === "Enter") {
                       handleAddChore();
                     }
                     // Allow canceling by pressing Escape key
                     if (e.key === "Escape") {
                       setIsAddingChore(false);
                       setNewChoreTitle("");
-                    }
-                  }}
+              }
+            }}
                   placeholder="Enter chore title..."
                   autoFocus // Automatically focus the input when it appears
                   className="w-full px-4 py-3 mb-3 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+          />
                 <div className="flex gap-3">
                   {/* Submit button - creates the chore */}
                   <button
@@ -379,6 +503,113 @@ export default function Home() {
                 - Each section can be independently expanded/collapsed
           */
           <div className="w-full space-y-4">
+            {/* ============================================
+                ASSIGNEES SECTION
+                ============================================
+                This section displays and manages assignees (people who can do chores).
+                
+                WHY ASSIGNEES ARE SEPARATE FROM CHORES:
+                1. Reusability: One person can be assigned to many different chores
+                   - Instead of storing "Alice" in every chore, we store assignee ID
+                   - Change Alice's name once, it updates everywhere
+                
+                2. Data Normalization: Store person info in one place
+                   - Assignees are a global list, not tied to specific chores
+                   - Chores reference assignees by ID (assigneeIds array)
+                   - This prevents duplicate data and inconsistencies
+                
+                3. Easy Updates: Update person info without touching chores
+                   - Change name, email, avatar, etc. in one place
+                   - All chores automatically reflect the change
+                
+                4. Relationships: Many-to-many relationship
+                   - One assignee → many chores (via assigneeIds in each chore)
+                   - One chore → many assignees (via assigneeIds array)
+                   - This structure supports both relationships efficiently
+                
+                5. Scalability: Easy to add features later
+                   - Can add properties (email, avatar, preferences) to Assignee
+                   - Don't need to modify Chore interface
+                   - All existing chores automatically get access to new properties
+            */}
+            <div className="mb-6 p-4 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-zinc-50 dark:bg-zinc-900">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-semibold text-black dark:text-zinc-50">
+                  Assignees
+                </h2>
+                {!isAddingAssignee ? (
+                  <button
+                    onClick={() => {
+                      // State change: Show the assignee input form
+                      setIsAddingAssignee(true);
+                    }}
+                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+                  >
+                    + Add Assignee
+                  </button>
+                ) : (
+                  <div className="flex gap-2">
+              <input
+                      type="text"
+                      value={newAssigneeName}
+                onChange={(e) => {
+                        // State change: Update the input value as user types
+                        setNewAssigneeName(e.target.value);
+                      }}
+                      onKeyDown={(e) => {
+                        // Allow submitting by pressing Enter key
+                        if (e.key === "Enter") {
+                          handleAddAssignee();
+                        }
+                        // Allow canceling by pressing Escape key
+                        if (e.key === "Escape") {
+                          setIsAddingAssignee(false);
+                          setNewAssigneeName("");
+                        }
+                      }}
+                      placeholder="Enter assignee name..."
+                      autoFocus
+                      className="flex-1 px-3 py-1.5 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    />
+                    <button
+                      onClick={handleAddAssignee}
+                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+                    >
+                      Add
+                    </button>
+                    <button
+                      onClick={() => {
+                        // State change: Hide the form and clear input
+                        setIsAddingAssignee(false);
+                        setNewAssigneeName("");
+                      }}
+                      className="px-3 py-1.5 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-black dark:text-zinc-50 rounded-lg transition-colors text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
+              </div>
+              
+              {/* List of assignees */}
+              {assignees.length === 0 ? (
+                <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                  No assignees yet. Add someone to get started!
+                </p>
+              ) : (
+                <div className="flex flex-wrap gap-2">
+                  {assignees.map((assignee) => (
+                    <div
+                      key={assignee.id}
+                      className="px-3 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm text-black dark:text-zinc-50"
+                    >
+                      {assignee.name}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
             {/* Button to add a new category */}
             <div className="mb-4">
               {!isAddingCategory ? (
@@ -393,10 +624,10 @@ export default function Home() {
                 </button>
               ) : (
                 <div className="flex gap-2">
-                  <input
+              <input
                     type="text"
                     value={newCategoryName}
-                    onChange={(e) => {
+                onChange={(e) => {
                       // State change: Update the input value as user types
                       setNewCategoryName(e.target.value);
                     }}
@@ -409,8 +640,8 @@ export default function Home() {
                       if (e.key === "Escape") {
                         setIsAddingCategory(false);
                         setNewCategoryName("");
-                      }
-                    }}
+                  }
+                }}
                     placeholder="Enter category name..."
                     autoFocus
                     className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
@@ -421,17 +652,17 @@ export default function Home() {
                   >
                     Add
                   </button>
-                  <button
+          <button
                     onClick={() => {
                       // State change: Hide the form and clear input
                       setIsAddingCategory(false);
                       setNewCategoryName("");
                     }}
                     className="px-3 py-2 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-black dark:text-zinc-50 rounded-lg transition-colors text-sm"
-                  >
+          >
                     Cancel
-                  </button>
-                </div>
+          </button>
+        </div>
               )}
             </div>
 
@@ -450,7 +681,7 @@ export default function Home() {
               return (
                 <div
                   key={category.id}
-                  className="border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 overflow-hidden"
+                  className="border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 overflow-visible"
                 >
                   {/* Category header - clickable to toggle accordion */}
                   <button
@@ -510,36 +741,127 @@ export default function Home() {
                   {category.isOpen && (
                     <div className="px-4 pb-4">
                       <ul className="space-y-2" role="list">
-                        {categoryChores.map((chore) => (
-                          <li
-                            key={chore.id}
-                            className="flex items-start gap-3 p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50 dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
-                          >
-                            {/* Checkbox input */}
-                            <input
-                              type="checkbox"
-                              id={`chore-${chore.id}`}
-                              checked={chore.completed}
-                              onChange={() => {
-                                handleToggleChore(chore.id);
-                              }}
-                              aria-label={`Mark "${chore.title}" as ${chore.completed ? "incomplete" : "complete"}`}
-                              className="mt-1 w-5 h-5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
-                            />
-                            
-                            {/* Chore title label */}
-                            <label
-                              htmlFor={`chore-${chore.id}`}
-                              className={`flex-1 cursor-pointer ${
-                                chore.completed
-                                  ? "line-through text-zinc-400 dark:text-zinc-500"
-                                  : "text-black dark:text-zinc-50"
-                              }`}
+                        {categoryChores.map((chore) => {
+                          // Get assignee objects for this chore
+                          const choreAssignees = assignees.filter((assignee) =>
+                            chore.assigneeIds.includes(assignee.id)
+                          );
+
+                          return (
+                            <li
+                              key={chore.id}
+                              className="flex flex-col gap-2 p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50 dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
                             >
-                              {chore.title}
-                            </label>
-                          </li>
-                        ))}
+                              {/* Main chore row */}
+                              <div className="flex items-start gap-3">
+                                {/* Checkbox input */}
+                                <input
+                                  type="checkbox"
+                                  id={`chore-${chore.id}`}
+                                  checked={chore.completed}
+                                  onChange={() => {
+                                    handleToggleChore(chore.id);
+                                  }}
+                                  aria-label={`Mark "${chore.title}" as ${chore.completed ? "incomplete" : "complete"}`}
+                                  className="mt-1 w-5 h-5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
+                                />
+                                
+                                {/* Chore title label */}
+                                <label
+                                  htmlFor={`chore-${chore.id}`}
+                                  className={`flex-1 cursor-pointer ${
+                                    chore.completed
+                                      ? "line-through text-zinc-400 dark:text-zinc-500"
+                                      : "text-black dark:text-zinc-50"
+                                  }`}
+                                >
+                                  {chore.title}
+                                </label>
+
+                                {/* Assignee button and selector */}
+                                <div className="relative">
+                                  {/* "+" button to open assignee selector */}
+                                  <button
+                                    onClick={(e) => {
+                                      // STATE UPDATE: Toggle assignee selector for this chore
+                                      // If this chore's selector is already open, close it
+                                      // Otherwise, open it (and close any other open selector)
+                                      const button = e.currentTarget;
+                                      const rect = button.getBoundingClientRect();
+                                      setDropdownPosition({
+                                        top: rect.bottom + window.scrollY + 4,
+                                        right: window.innerWidth - rect.right,
+                                      });
+                                      setOpenAssigneeSelector(
+                                        openAssigneeSelector === chore.id ? null : chore.id
+                                      );
+                                    }}
+                                    className="px-2 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-zinc-50 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
+                                    aria-label="Assign assignees"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Assignee selector dropdown - rendered outside relative container using fixed positioning */}
+                              {openAssigneeSelector === chore.id && dropdownPosition && (
+                                <div
+                                  className="fixed z-[9999] w-48 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg shadow-lg p-2"
+                                  style={{
+                                    top: `${dropdownPosition.top}px`,
+                                    right: `${dropdownPosition.right}px`,
+                                  }}
+                                >
+                                  {assignees.length === 0 ? (
+                                    <p className="text-sm text-zinc-500 dark:text-zinc-400 p-2">
+                                      No assignees yet
+                                    </p>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      {assignees.map((assignee) => {
+                                        const isAssigned = chore.assigneeIds.includes(assignee.id);
+                                        return (
+                    <button
+                                            key={assignee.id}
+                                            onClick={() => {
+                                              // STATE UPDATE: Toggle assignee assignment
+                                              // handleToggleAssignee updates the chore's assigneeIds array
+                                              // React re-renders and the badge list updates
+                                              handleToggleAssignee(chore.id, assignee.id);
+                                            }}
+                                            className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
+                                              isAssigned
+                                                ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100"
+                                                : "hover:bg-zinc-100 dark:hover:bg-zinc-700 text-black dark:text-zinc-50"
+                                            }`}
+                                          >
+                                            {isAssigned ? "✓ " : ""}
+                                            {assignee.name}
+                    </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+
+                              {/* Assigned assignees as pill badges */}
+                              {choreAssignees.length > 0 && (
+                                <div className="flex flex-wrap gap-1.5 ml-8">
+                                  {choreAssignees.map((assignee) => (
+                                    <span
+                                      key={assignee.id}
+                                      className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full"
+                                    >
+                                      {assignee.name}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </li>
+                          );
+                        })}
                       </ul>
                     </div>
                   )}
@@ -570,47 +892,137 @@ export default function Home() {
                       </span>
                     </h2>
                   </div>
-
+                  
                   {/* Uncategorized chores list - always visible (no accordion) */}
                   <div className="px-4 pb-4">
                     <ul className="space-y-2" role="list">
-                      {uncategorizedChores.map((chore) => (
-                        <li
-                          key={chore.id}
-                          className="flex items-start gap-3 p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50 dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
-                        >
-                          {/* Checkbox input */}
-                          <input
-                            type="checkbox"
-                            id={`chore-${chore.id}`}
-                            checked={chore.completed}
-                            onChange={() => {
-                              handleToggleChore(chore.id);
-                            }}
-                            aria-label={`Mark "${chore.title}" as ${chore.completed ? "incomplete" : "complete"}`}
-                            className="mt-1 w-5 h-5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
-                          />
-                          
-                          {/* Chore title label */}
-                          <label
-                            htmlFor={`chore-${chore.id}`}
-                            className={`flex-1 cursor-pointer ${
-                              chore.completed
-                                ? "line-through text-zinc-400 dark:text-zinc-500"
-                                : "text-black dark:text-zinc-50"
-                            }`}
+                      {uncategorizedChores.map((chore) => {
+                        // Get assignee objects for this chore
+                        const choreAssignees = assignees.filter((assignee) =>
+                          chore.assigneeIds.includes(assignee.id)
+                        );
+
+                        return (
+                          <li
+                            key={chore.id}
+                            className="flex flex-col gap-2 p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50 dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
                           >
-                            {chore.title}
-                          </label>
-                        </li>
-                      ))}
+                            {/* Main chore row */}
+                            <div className="flex items-start gap-3">
+                              {/* Checkbox input */}
+                      <input
+                        type="checkbox"
+                                id={`chore-${chore.id}`}
+                                checked={chore.completed}
+                                onChange={() => {
+                                  handleToggleChore(chore.id);
+                                }}
+                                aria-label={`Mark "${chore.title}" as ${chore.completed ? "incomplete" : "complete"}`}
+                                className="mt-1 w-5 h-5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
+                              />
+                              
+                              {/* Chore title label */}
+                              <label
+                                htmlFor={`chore-${chore.id}`}
+                                className={`flex-1 cursor-pointer ${
+                                  chore.completed
+                                    ? "line-through text-zinc-400 dark:text-zinc-500"
+                                    : "text-black dark:text-zinc-50"
+                                }`}
+                              >
+                                {chore.title}
+                    </label>
+                    
+                              {/* Assignee button and selector */}
+                              <div className="relative">
+                                {/* "+" button to open assignee selector */}
+                                <button
+                                  onClick={(e) => {
+                                    // STATE UPDATE: Toggle assignee selector for this chore
+                                    // If this chore's selector is already open, close it
+                                    // Otherwise, open it (and close any other open selector)
+                                    const button = e.currentTarget;
+                                    const rect = button.getBoundingClientRect();
+                                    setDropdownPosition({
+                                      top: rect.bottom + window.scrollY + 4,
+                                      right: window.innerWidth - rect.right,
+                                    });
+                                    setOpenAssigneeSelector(
+                                      openAssigneeSelector === chore.id ? null : chore.id
+                                    );
+                                  }}
+                                  className="px-2 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-zinc-50 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
+                                  aria-label="Assign assignees"
+                                >
+                                  +
+                                </button>
+                              </div>
+
+                              {/* Assignee selector dropdown - rendered outside relative container using fixed positioning */}
+                              {openAssigneeSelector === chore.id && dropdownPosition && (
+                                <div
+                                  className="fixed z-[9999] w-48 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg shadow-lg p-2"
+                                  style={{
+                                    top: `${dropdownPosition.top}px`,
+                                    right: `${dropdownPosition.right}px`,
+                                  }}
+                                >
+                                    {assignees.length === 0 ? (
+                                      <p className="text-sm text-zinc-500 dark:text-zinc-400 p-2">
+                                        No assignees yet
+                                      </p>
+                                    ) : (
+                                      <div className="space-y-1">
+                                        {assignees.map((assignee) => {
+                                          const isAssigned = chore.assigneeIds.includes(assignee.id);
+                                          return (
+                                            <button
+                                              key={assignee.id}
+                                              onClick={() => {
+                                                // STATE UPDATE: Toggle assignee assignment
+                                                // handleToggleAssignee updates the chore's assigneeIds array
+                                                // React re-renders and the badge list updates
+                                                handleToggleAssignee(chore.id, assignee.id);
+                                              }}
+                                              className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
+                                                isAssigned
+                                                  ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100"
+                                                  : "hover:bg-zinc-100 dark:hover:bg-zinc-700 text-black dark:text-zinc-50"
+                                              }`}
+                                            >
+                                              {isAssigned ? "✓ " : ""}
+                                              {assignee.name}
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+
+                            {/* Assigned assignees as pill badges */}
+                            {choreAssignees.length > 0 && (
+                              <div className="flex flex-wrap gap-1.5 ml-8">
+                                {choreAssignees.map((assignee) => (
+                                  <span
+                                    key={assignee.id}
+                                    className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full"
+                                  >
+                                    {assignee.name}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+                          </li>
+                        );
+                      })}
                     </ul>
                   </div>
                 </div>
               );
             })()}
-          </div>
-        )}
+            </div>
+          )}
       </main>
     </div>
   );
