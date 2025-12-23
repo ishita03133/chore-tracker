@@ -1,6 +1,7 @@
 "use client"; // This tells Next.js this is a client component (needed for useState and interactivity)
 
 import { useState, useEffect } from "react"; // Import hooks to manage component state and side effects
+import { createPortal } from "react-dom"; // Import createPortal to render dropdowns outside the DOM hierarchy
 
 /* ============================================
    DATA MODELS - Type Definitions
@@ -149,7 +150,10 @@ export default function Home() {
   const [newAssigneeNameInChore, setNewAssigneeNameInChore] = useState("");
 
   // State to store the position of the dropdown (for fixed positioning)
-  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; right: number } | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
+
+  // State to track if component is mounted (needed for portal rendering)
+  const [isMounted, setIsMounted] = useState(false);
 
   /* ============================================
      LOCALSTORAGE PERSISTENCE - LOAD & SAVE
@@ -172,6 +176,11 @@ export default function Home() {
      - Safe to use localStorage inside useEffect
      - No hydration mismatch! ✅
   */
+  
+  // Set mounted state for portal rendering
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
   
   // PHASE 1: Load data from localStorage on mount
   useEffect(() => {
@@ -268,6 +277,7 @@ export default function Home() {
       setOpenCategoryAssigneeSelector(null);
       setAddingAssigneeInChore(null);
       setNewAssigneeNameInChore("");
+      setDropdownPosition(null); // Reset dropdown position when closing
     };
 
     // Add event listener when any selector is open
@@ -1315,15 +1325,23 @@ export default function Home() {
                             // STATE UPDATE: Toggle assignee selector for this category
                             const button = e.currentTarget;
                             const rect = button.getBoundingClientRect();
-                            setDropdownPosition({
-                              top: rect.bottom + window.scrollY + 4,
-                              right: window.innerWidth - rect.right,
-                            });
+                            
+                            // Calculate position - dropdown should appear right below the button
+                            const dropdownWidth = 224; // w-56 = 224px
+                            let left = rect.left + window.scrollX; // Add scroll offset for absolute positioning
+                            const top = rect.bottom + window.scrollY + 4; // Add scroll offset for absolute positioning
+                            
+                            // Ensure dropdown doesn't go off-screen to the right
+                            if (rect.left + dropdownWidth > window.innerWidth) {
+                              left = window.innerWidth - dropdownWidth - 8 + window.scrollX;
+                            }
+                            
+                            setDropdownPosition({ top, left });
                             setOpenCategoryAssigneeSelector(
                               openCategoryAssigneeSelector === category.id ? null : category.id
                             );
                           }}
-                          className={`px-2 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-zinc-50 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-all ${
+                          className={`px-2 py-1 text-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200 hover:bg-white/50 dark:hover:bg-white/20 backdrop-blur-sm rounded-lg transition-all duration-300 border border-transparent hover:border-white/30 ${
                             category.assigneeIds.length === 0 ? "opacity-0 group-hover:opacity-100" : ""
                           }`}
                           aria-label="Manage category default assignees"
@@ -1333,12 +1351,12 @@ export default function Home() {
                         </button>
 
                         {/* Category assignee selector dropdown */}
-                        {openCategoryAssigneeSelector === category.id && dropdownPosition && (
+                        {isMounted && openCategoryAssigneeSelector === category.id && dropdownPosition && createPortal(
                           <div
-                            className="fixed z-[9999] w-56 backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-2xl shadow-glass-strong p-3 transition-all duration-300"
+                            className="absolute z-[9999] w-56 backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-2xl shadow-glass-strong p-3 transition-all duration-300"
                             style={{
                               top: `${dropdownPosition.top}px`,
-                              right: `${dropdownPosition.right}px`,
+                              left: `${dropdownPosition.left}px`,
                             }}
                           >
                             <div className="mb-2 pb-2 border-b border-white/20">
@@ -1377,7 +1395,8 @@ export default function Home() {
                                 })}
                               </div>
                             )}
-                          </div>
+                          </div>,
+                          document.body
                         )}
                       </div>
 
@@ -1545,15 +1564,23 @@ export default function Home() {
                                       // Otherwise, open it (and close any other open selector)
                                       const button = e.currentTarget;
                                       const rect = button.getBoundingClientRect();
-                                      setDropdownPosition({
-                                        top: rect.bottom + window.scrollY + 4,
-                                        right: window.innerWidth - rect.right,
-                                      });
+                                      
+                                      // Calculate position - dropdown should appear right below the button
+                                      const dropdownWidth = 224; // w-56 = 224px
+                                      let left = rect.left + window.scrollX; // Add scroll offset for absolute positioning
+                                      const top = rect.bottom + window.scrollY + 4; // Add scroll offset for absolute positioning
+                                      
+                                      // Ensure dropdown doesn't go off-screen to the right
+                                      if (rect.left + dropdownWidth > window.innerWidth) {
+                                        left = window.innerWidth - dropdownWidth - 8 + window.scrollX;
+                                      }
+                                      
+                                      setDropdownPosition({ top, left });
                                       setOpenAssigneeSelector(
                                         openAssigneeSelector === chore.id ? null : chore.id
                                       );
                                     }}
-                                    className="px-2 py-1 text-sm text-zinc-400 dark:text-zinc-600 opacity-0 group-hover:opacity-100 hover:text-black dark:hover:text-zinc-50 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-all"
+                                    className="px-2 py-1 text-sm text-purple-600 dark:text-purple-400 opacity-0 group-hover:opacity-100 hover:text-purple-800 dark:hover:text-purple-200 hover:bg-white/50 dark:hover:bg-white/20 backdrop-blur-sm rounded-lg transition-all duration-300 border border-transparent hover:border-white/30"
                                     aria-label="Assign assignees"
                                     title="Assign someone to this chore"
                                   >
@@ -1578,13 +1605,13 @@ export default function Home() {
                                 </button>
                               </div>
 
-                              {/* Assignee selector dropdown - rendered outside relative container using fixed positioning */}
-                              {openAssigneeSelector === chore.id && dropdownPosition && (
+                              {/* Assignee selector dropdown - rendered outside relative container using absolute positioning */}
+                              {isMounted && openAssigneeSelector === chore.id && dropdownPosition && createPortal(
                                 <div
-                                  className="fixed z-[9999] w-56 backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-2xl shadow-glass-strong p-2 transition-all duration-300"
+                                  className="absolute z-[9999] w-56 backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-2xl shadow-glass-strong p-2 transition-all duration-300"
                                   style={{
                                     top: `${dropdownPosition.top}px`,
-                                    right: `${dropdownPosition.right}px`,
+                                    left: `${dropdownPosition.left}px`,
                                   }}
                                 >
                                   {/* Quick add assignee form */}
@@ -1677,7 +1704,8 @@ export default function Home() {
                                       })}
                                     </div>
                                   )}
-                                </div>
+                                </div>,
+                                document.body
                               )}
 
                               {/* Assigned assignees as pill badges */}
@@ -1817,15 +1845,23 @@ export default function Home() {
                                     // Otherwise, open it (and close any other open selector)
                                     const button = e.currentTarget;
                                     const rect = button.getBoundingClientRect();
-                                    setDropdownPosition({
-                                      top: rect.bottom + window.scrollY + 4,
-                                      right: window.innerWidth - rect.right,
-                                    });
+                                    
+                                    // Calculate position - dropdown should appear right below the button
+                                    const dropdownWidth = 192; // w-48 = 192px
+                                    let left = rect.left + window.scrollX; // Add scroll offset for absolute positioning
+                                    const top = rect.bottom + window.scrollY + 4; // Add scroll offset for absolute positioning
+                                    
+                                    // Ensure dropdown doesn't go off-screen to the right
+                                    if (rect.left + dropdownWidth > window.innerWidth) {
+                                      left = window.innerWidth - dropdownWidth - 8 + window.scrollX;
+                                    }
+                                    
+                                    setDropdownPosition({ top, left });
                                     setOpenAssigneeSelector(
                                       openAssigneeSelector === chore.id ? null : chore.id
                                     );
                                   }}
-                                  className="px-2 py-1 text-sm text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-zinc-50 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded transition-colors"
+                                  className="px-2 py-1 text-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200 hover:bg-white/50 dark:hover:bg-white/20 backdrop-blur-sm rounded-lg transition-all duration-300 border border-transparent hover:border-white/30"
                                   aria-label="Assign assignees"
                                 >
                                   +
@@ -1849,13 +1885,13 @@ export default function Home() {
                               </button>
                             </div>
 
-                            {/* Assignee selector dropdown - rendered outside relative container using fixed positioning */}
-                              {openAssigneeSelector === chore.id && dropdownPosition && (
+                            {/* Assignee selector dropdown - rendered outside relative container using absolute positioning */}
+                              {isMounted && openAssigneeSelector === chore.id && dropdownPosition && createPortal(
                                 <div
-                                  className="fixed z-[9999] w-48 backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-2xl shadow-glass-strong p-2 transition-all duration-300"
+                                  className="absolute z-[9999] w-48 backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-2xl shadow-glass-strong p-2 transition-all duration-300"
                                   style={{
                                     top: `${dropdownPosition.top}px`,
-                                    right: `${dropdownPosition.right}px`,
+                                    left: `${dropdownPosition.left}px`,
                                   }}
                                 >
                                     {assignees.length === 0 ? (
@@ -1888,7 +1924,8 @@ export default function Home() {
                                         })}
                                       </div>
                                     )}
-                                  </div>
+                                  </div>,
+                                  document.body
                                 )}
 
                             {/* Assigned assignees as pill badges */}
