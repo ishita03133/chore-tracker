@@ -834,9 +834,9 @@ export default function Home() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-zinc-50 font-sans dark:bg-black">
+    <div className="flex min-h-screen items-center justify-center font-sans">
       {/* Main content container with centered layout and max width */}
-      <main className="flex min-h-screen w-full max-w-3xl flex-col items-start py-16 px-8 bg-white dark:bg-black">
+      <main className="flex min-h-screen w-full max-w-3xl flex-col items-start py-16 px-8">
         {/* Header with title and add button */}
         <div className="w-full flex items-center justify-between mb-8">
           {/* Page title */}
@@ -851,7 +851,7 @@ export default function Home() {
                 // Show the inline input form for adding a new chore
                 setIsAddingChore(true);
               }}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+              className="px-4 py-2 bg-white/40 hover:bg-white/60 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-md border border-white/20 text-purple-700 dark:text-purple-300 rounded-xl transition-all duration-300 shadow-glass text-sm font-medium"
             >
               + Add Chore
             </button>
@@ -899,7 +899,7 @@ export default function Home() {
                     // and the input form appears inline below
                     setIsAddingChore(true);
                   }}
-                  className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                  className="px-6 py-3 bg-white/40 hover:bg-white/60 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-md border border-white/20 text-purple-700 dark:text-purple-300 rounded-xl transition-all duration-300 shadow-glass font-medium"
                 >
                   Add your first chore
                 </button>
@@ -930,7 +930,7 @@ export default function Home() {
             }}
                   placeholder="Enter chore title..."
                   autoFocus // Automatically focus the input when it appears
-                  className="w-full px-4 py-3 mb-3 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-4 py-3 mb-3 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300 placeholder:text-purple-400/60"
           />
           
           {/* Category selector - only show if categories exist */}
@@ -942,7 +942,7 @@ export default function Home() {
                 const value = e.target.value === "" ? undefined : parseInt(e.target.value);
                 setNewChoreCategoryId(value);
               }}
-              className="w-full px-4 py-3 mb-3 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-4 py-3 mb-3 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300"
             >
               <option value="">Uncategorized</option>
               {categories.map((category) => (
@@ -956,7 +956,7 @@ export default function Home() {
                   {/* Submit button - creates the chore */}
                   <button
                     onClick={handleAddChore}
-                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                    className="flex-1 px-4 py-2 bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-600/60 dark:hover:bg-purple-700/70 backdrop-blur-sm text-white rounded-xl transition-all duration-300 shadow-glass font-medium"
                   >
                     Add Chore
                   </button>
@@ -968,7 +968,7 @@ export default function Home() {
                       setNewChoreTitle("");
                       setNewChoreCategoryId(undefined);
                     }}
-                    className="px-4 py-2 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-black dark:text-zinc-50 rounded-lg transition-colors"
+                    className="px-4 py-2 bg-white/30 hover:bg-white/50 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-sm border border-white/20 text-black dark:text-zinc-50 rounded-xl transition-all duration-300"
                   >
                     Cancel
                   </button>
@@ -1021,8 +1021,8 @@ export default function Home() {
                   }}
                   placeholder="Enter chore title..."
                   autoFocus
-                  className="w-full px-4 py-3 mb-3 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                  className="w-full px-4 py-3 mb-3 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300 placeholder:text-purple-400/60"
+          />
                 
                 {/* Category selector - only show if categories exist */}
                 {categories.length > 0 && (
@@ -1032,7 +1032,7 @@ export default function Home() {
                       const value = e.target.value === "" ? undefined : parseInt(e.target.value);
                       setNewChoreCategoryId(value);
                     }}
-                    className="w-full px-4 py-3 mb-3 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-4 py-3 mb-3 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300"
                   >
                     <option value="">Uncategorized</option>
                     {categories.map((category) => (
@@ -1046,7 +1046,7 @@ export default function Home() {
                 <div className="flex gap-3">
                   <button
                     onClick={handleAddChore}
-                    className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors font-medium"
+                    className="flex-1 px-4 py-2 bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-600/60 dark:hover:bg-purple-700/70 backdrop-blur-sm text-white rounded-xl transition-all duration-300 shadow-glass font-medium"
                   >
                     Add Chore
                   </button>
@@ -1056,7 +1056,7 @@ export default function Home() {
                       setNewChoreTitle("");
                       setNewChoreCategoryId(undefined);
                     }}
-                    className="px-4 py-2 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-black dark:text-zinc-50 rounded-lg transition-colors"
+                    className="px-4 py-2 bg-white/30 hover:bg-white/50 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-sm text-black dark:text-zinc-50 rounded-xl transition-all duration-300 border border-white/20"
                   >
                     Cancel
                   </button>
@@ -1093,7 +1093,7 @@ export default function Home() {
                    - Don't need to modify Chore interface
                    - All existing chores automatically get access to new properties
             */}
-            <div className="mb-6 p-4 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-zinc-50 dark:bg-zinc-900">
+            <div className="mb-6 p-4 rounded-2xl backdrop-blur-md bg-white/60 dark:bg-white/5 border border-white/20 shadow-glass">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-lg font-semibold text-black dark:text-zinc-50">
                   Assignees
@@ -1104,7 +1104,7 @@ export default function Home() {
                       // State change: Show the assignee input form
                       setIsAddingAssignee(true);
                     }}
-                    className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+                    className="px-3 py-1.5 bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-600/60 dark:hover:bg-purple-700/70 backdrop-blur-sm text-white rounded-xl transition-all duration-300 shadow-glass text-sm font-medium"
                   >
                     + Add Assignee
                   </button>
@@ -1130,11 +1130,11 @@ export default function Home() {
                       }}
                       placeholder="Enter assignee name..."
                       autoFocus
-                      className="flex-1 px-3 py-1.5 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                      className="flex-1 px-3 py-1.5 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300 text-sm placeholder:text-purple-400/60"
                     />
                     <button
                       onClick={handleAddAssignee}
-                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+                      className="px-3 py-1.5 bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-600/60 dark:hover:bg-purple-700/70 backdrop-blur-sm text-white rounded-xl transition-all duration-300 shadow-glass text-sm font-medium"
                     >
                       Add
                     </button>
@@ -1144,7 +1144,7 @@ export default function Home() {
                         setIsAddingAssignee(false);
                         setNewAssigneeName("");
                       }}
-                      className="px-3 py-1.5 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-black dark:text-zinc-50 rounded-lg transition-colors text-sm"
+                      className="px-3 py-1.5 bg-white/30 hover:bg-white/50 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-sm border border-white/20 text-black dark:text-zinc-50 rounded-xl transition-all duration-300 text-sm"
                     >
                       Cancel
                     </button>
@@ -1162,7 +1162,7 @@ export default function Home() {
                   {assignees.map((assignee) => (
                     <div
                       key={assignee.id}
-                      className="px-3 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg text-sm text-black dark:text-zinc-50"
+                      className="px-3 py-1.5 bg-white/40 dark:bg-white/10 border border-white/20 rounded-xl text-sm text-black dark:text-zinc-50 backdrop-blur-sm shadow-sm"
                     >
                       {assignee.name}
                     </div>
@@ -1179,7 +1179,7 @@ export default function Home() {
                     // State change: Show the category input form
                     setIsAddingCategory(true);
                   }}
-                  className="px-4 py-2 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-black dark:text-zinc-50 rounded-lg transition-colors text-sm font-medium"
+                  className="px-4 py-2 bg-white/30 hover:bg-white/50 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-sm border border-white/20 text-black dark:text-zinc-50 rounded-xl transition-all duration-300 text-sm font-medium"
                 >
                   + Add Category
                 </button>
@@ -1205,11 +1205,11 @@ export default function Home() {
                 }}
                     placeholder="Enter category name..."
                     autoFocus
-                    className="flex-1 px-3 py-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="flex-1 px-3 py-2 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300 text-sm placeholder:text-purple-400/60"
                   />
                   <button
                     onClick={handleAddCategory}
-                    className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+                    className="px-3 py-2 bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-600/60 dark:hover:bg-purple-700/70 backdrop-blur-sm text-white rounded-xl transition-all duration-300 shadow-glass text-sm font-medium"
                   >
                     Add
                   </button>
@@ -1219,7 +1219,7 @@ export default function Home() {
                       setIsAddingCategory(false);
                       setNewCategoryName("");
                     }}
-                    className="px-3 py-2 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-black dark:text-zinc-50 rounded-lg transition-colors text-sm"
+                    className="px-3 py-2 bg-white/30 hover:bg-white/50 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-sm border border-white/20 text-black dark:text-zinc-50 rounded-xl transition-all duration-300 text-sm"
           >
                     Cancel
           </button>
@@ -1237,10 +1237,10 @@ export default function Home() {
               return (
                 <div
                   key={category.id}
-                  className="border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 overflow-visible"
+                  className="border border-white/20 rounded-2xl backdrop-blur-md bg-white/50 dark:bg-white/5 overflow-visible shadow-glass transition-all duration-300 hover:shadow-xl hover:bg-white/60 dark:hover:bg-white/10"
                 >
                   {/* Category header - contains toggle button and assignee management */}
-                  <div className="group flex items-center justify-between p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors">
+                  <div className="group flex items-center justify-between p-4 hover:bg-white/30 dark:hover:bg-white/10 transition-all duration-300 rounded-t-2xl">
                     {/* Left side: Toggle button with category name */}
                     <button
                       onClick={() => {
@@ -1295,7 +1295,7 @@ export default function Home() {
                             return assignee ? (
                               <span
                                 key={assignee.id}
-                                className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200 rounded-full"
+                                className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-purple-200/60 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 backdrop-blur-sm border border-purple-300/30 shadow-sm"
                                 title="Default assignee for this category"
                               >
                                 {assignee.name}
@@ -1335,13 +1335,13 @@ export default function Home() {
                         {/* Category assignee selector dropdown */}
                         {openCategoryAssigneeSelector === category.id && dropdownPosition && (
                           <div
-                            className="fixed z-[9999] w-56 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg shadow-lg p-3"
+                            className="fixed z-[9999] w-56 backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-2xl shadow-glass-strong p-3 transition-all duration-300"
                             style={{
                               top: `${dropdownPosition.top}px`,
                               right: `${dropdownPosition.right}px`,
                             }}
                           >
-                            <div className="mb-2 pb-2 border-b border-zinc-200 dark:border-zinc-700">
+                            <div className="mb-2 pb-2 border-b border-white/20">
                               <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                                 Default Assignees
                               </p>
@@ -1364,10 +1364,10 @@ export default function Home() {
                                         // STATE UPDATE: Toggle assignee on this category
                                         handleToggleCategoryAssignee(category.id, assignee.id);
                                       }}
-                                      className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
+                                      className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-300 ${
                                         isAssigned
-                                          ? "bg-purple-100 dark:bg-purple-900 text-purple-900 dark:text-purple-100"
-                                          : "hover:bg-zinc-100 dark:hover:bg-zinc-700 text-black dark:text-zinc-50"
+                                          ? "bg-purple-200/60 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 backdrop-blur-sm border border-purple-300/30"
+                                          : "hover:bg-white/40 dark:hover:bg-white/10 text-black dark:text-zinc-50"
                                       }`}
                                     >
                                       {isAssigned ? "✓ " : ""}
@@ -1390,7 +1390,7 @@ export default function Home() {
                             handleDeleteCategory(category.id);
                           }
                         }}
-                        className="px-2 py-1 text-sm text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950 rounded transition-all"
+                        className="px-2 py-1 text-sm text-red-500 dark:text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-100/40 dark:hover:bg-red-950/40 backdrop-blur-sm rounded-lg transition-all duration-300"
                         aria-label="Delete category"
                         title="Delete this category"
                       >
@@ -1425,7 +1425,7 @@ export default function Home() {
                         </button>
                       ) : (
                         /* Inline chore creation form within category */
-                        <div className="mb-3 p-3 border-2 border-blue-500 rounded-lg bg-blue-50 dark:bg-blue-950">
+                        <div className="mb-3 p-3 border-2 border-purple-400/50 rounded-xl bg-purple-50/50 dark:bg-purple-950/30 backdrop-blur-sm">
                           <input
                             type="text"
                             value={newChoreTitleInCategory}
@@ -1441,12 +1441,12 @@ export default function Home() {
                             }}
                             placeholder={`New chore in ${category.name}...`}
                             autoFocus
-                            className="w-full px-3 py-2 mb-2 border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-800 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                            className="w-full px-3 py-2 mb-2 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300 text-sm placeholder:text-purple-400/60"
                           />
                           <div className="flex gap-2">
                             <button
                               onClick={() => handleAddChoreInCategory(category.id)}
-                              className="flex-1 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors text-sm font-medium"
+                              className="flex-1 px-3 py-1.5 bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-600/60 dark:hover:bg-purple-700/70 backdrop-blur-sm text-white rounded-xl transition-all duration-300 shadow-glass text-sm font-medium"
                             >
                               Add
                             </button>
@@ -1455,7 +1455,7 @@ export default function Home() {
                                 setAddingChoreInCategory(null);
                                 setNewChoreTitleInCategory("");
                               }}
-                              className="px-3 py-1.5 bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-black dark:text-zinc-50 rounded-lg transition-colors text-sm"
+                              className="px-3 py-1.5 bg-white/30 hover:bg-white/50 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-sm border border-white/20 text-black dark:text-zinc-50 rounded-xl transition-all duration-300 text-sm"
                             >
                               Cancel
                             </button>
@@ -1484,7 +1484,7 @@ export default function Home() {
                           return (
                             <li
                               key={chore.id}
-                              className="group flex flex-col gap-2 p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50 dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+                              className="group flex flex-col gap-2 p-3 border border-white/20 rounded-xl bg-white/40 dark:bg-white/5 backdrop-blur-sm hover:bg-white/60 dark:hover:bg-white/10 transition-all duration-300 shadow-sm hover:shadow-md"
                             >
                               {/* Main chore row */}
                               <div className="flex items-start gap-3">
@@ -1522,7 +1522,7 @@ export default function Home() {
                                         handleMoveChoreToCategory(chore.id, categoryId);
                                       }}
                                       onClick={(e) => e.stopPropagation()} // Prevent category accordion toggle
-                                      className="px-2 py-1 text-xs border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                      className="px-2 py-1 text-xs border border-white/30 rounded-lg bg-white/50 dark:bg-white/10 backdrop-blur-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer transition-all duration-300"
                                       title="Move to another category"
                                     >
                                       {categories.map((cat) => (
@@ -1570,7 +1570,7 @@ export default function Home() {
                                       handleDeleteChore(chore.id);
                                     }
                                   }}
-                                  className="px-2 py-1 text-sm text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950 rounded transition-all"
+                                  className="px-2 py-1 text-sm text-red-500 dark:text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-100/40 dark:hover:bg-red-950/40 backdrop-blur-sm rounded-lg transition-all duration-300"
                                   aria-label="Delete chore"
                                   title="Delete this chore"
                                 >
@@ -1581,7 +1581,7 @@ export default function Home() {
                               {/* Assignee selector dropdown - rendered outside relative container using fixed positioning */}
                               {openAssigneeSelector === chore.id && dropdownPosition && (
                                 <div
-                                  className="fixed z-[9999] w-56 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg shadow-lg p-2"
+                                  className="fixed z-[9999] w-56 backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-2xl shadow-glass-strong p-2 transition-all duration-300"
                                   style={{
                                     top: `${dropdownPosition.top}px`,
                                     right: `${dropdownPosition.right}px`,
@@ -1589,7 +1589,7 @@ export default function Home() {
                                 >
                                   {/* Quick add assignee form */}
                                   {addingAssigneeInChore === chore.id ? (
-                                    <div className="p-2 border-b border-zinc-200 dark:border-zinc-700 mb-2">
+                                    <div className="p-2 border-b border-white/20 mb-2">
                                       <input
                                         type="text"
                                         value={newAssigneeNameInChore}
@@ -1607,7 +1607,7 @@ export default function Home() {
                                         onClick={(e) => e.stopPropagation()} // Prevent dropdown from closing
                                         placeholder="New assignee name..."
                                         autoFocus
-                                        className="w-full px-2 py-1 mb-2 text-sm border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-900 text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                        className="w-full px-2 py-1 mb-2 text-sm border border-white/30 rounded-lg bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300 placeholder:text-purple-400/60"
                                       />
                                       <div className="flex gap-1">
                                         <button
@@ -1615,7 +1615,7 @@ export default function Home() {
                                             e.stopPropagation();
                                             handleQuickAddAssignee(chore.id);
                                           }}
-                                          className="flex-1 px-2 py-1 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded transition-colors"
+                                          className="flex-1 px-2 py-1 text-xs bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-600/60 dark:hover:bg-purple-700/70 backdrop-blur-sm text-white rounded-lg transition-all duration-300"
                                         >
                                           Create & Assign
                                         </button>
@@ -1625,7 +1625,7 @@ export default function Home() {
                                             setAddingAssigneeInChore(null);
                                             setNewAssigneeNameInChore("");
                                           }}
-                                          className="px-2 py-1 text-xs bg-zinc-200 hover:bg-zinc-300 dark:bg-zinc-700 dark:hover:bg-zinc-600 text-black dark:text-zinc-50 rounded transition-colors"
+                                          className="px-2 py-1 text-xs bg-white/30 hover:bg-white/50 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-sm border border-white/20 text-black dark:text-zinc-50 rounded-lg transition-all duration-300"
                                         >
                                           Cancel
                                         </button>
@@ -1664,10 +1664,10 @@ export default function Home() {
                                               // React re-renders and the badge list updates
                                               handleToggleAssignee(chore.id, assignee.id);
                                             }}
-                                            className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
+                                            className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-300 ${
                                               isAssigned
-                                                ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100"
-                                                : "hover:bg-zinc-100 dark:hover:bg-zinc-700 text-black dark:text-zinc-50"
+                                                ? "bg-purple-200/60 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 backdrop-blur-sm border border-purple-300/30"
+                                                : "hover:bg-white/40 dark:hover:bg-white/10 text-black dark:text-zinc-50"
                                             }`}
                                           >
                                             {isAssigned ? "✓ " : ""}
@@ -1692,10 +1692,10 @@ export default function Home() {
                                   {choreAssignees.map((assignee) => (
                                     <span
                                       key={assignee.id}
-                                      className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded-full ${
+                                      className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full backdrop-blur-sm shadow-sm ${
                                         isInherited
-                                          ? "bg-purple-50 dark:bg-purple-950 text-purple-700 dark:text-purple-300 border border-dashed border-purple-300 dark:border-purple-700"
-                                          : "bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+                                          ? "bg-purple-100/50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-dashed border-purple-300/40"
+                                          : "bg-purple-200/60 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 border border-purple-300/30"
                                       }`}
                                       title={isInherited ? `Inherited from "${category.name}" category` : "Directly assigned"}
                                     >
@@ -1734,12 +1734,12 @@ export default function Home() {
               }
 
               return (
-                <div className="border border-zinc-300 dark:border-zinc-700 rounded-lg bg-white dark:bg-zinc-900 overflow-hidden">
+                <div className="border border-white/20 rounded-2xl backdrop-blur-md bg-white/50 dark:bg-white/5 overflow-hidden shadow-glass transition-all duration-300 hover:shadow-xl hover:bg-white/60 dark:hover:bg-white/10">
                   {/* Uncategorized section header */}
-                  <div className="p-4 bg-zinc-100 dark:bg-zinc-800">
+                  <div className="p-4 bg-white/30 dark:bg-white/10 hover:bg-white/40 dark:hover:bg-white/15 transition-all duration-300 rounded-t-2xl">
                     <h2 className="text-lg font-semibold text-black dark:text-zinc-50">
                       Uncategorized
-                      <span className="ml-2 text-sm font-normal text-zinc-500 dark:text-zinc-400">
+                      <span className="ml-2 text-sm font-normal text-purple-600 dark:text-purple-400">
                         ({uncategorizedChores.length})
                       </span>
                     </h2>
@@ -1757,7 +1757,7 @@ export default function Home() {
                         return (
                           <li
                             key={chore.id}
-                            className="group flex flex-col gap-2 p-3 border border-zinc-200 dark:border-zinc-800 rounded-lg bg-zinc-50 dark:bg-zinc-950 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
+                            className="group flex flex-col gap-2 p-3 border border-white/20 rounded-xl bg-white/40 dark:bg-white/5 backdrop-blur-sm hover:bg-white/60 dark:hover:bg-white/10 transition-all duration-300 shadow-sm hover:shadow-md"
                           >
                             {/* Main chore row */}
                             <div className="flex items-start gap-3">
@@ -1794,7 +1794,7 @@ export default function Home() {
                                       const categoryId = e.target.value === "" ? undefined : parseInt(e.target.value);
                                       handleMoveChoreToCategory(chore.id, categoryId);
                                     }}
-                                    className="px-2 py-1 text-xs border border-zinc-300 dark:border-zinc-700 rounded bg-white dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+                                    className="px-2 py-1 text-xs border border-white/30 rounded-lg bg-white/50 dark:bg-white/10 backdrop-blur-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer transition-all duration-300"
                                     title="Move to category"
                                   >
                                     <option value="" disabled>📁 Move to...</option>
@@ -1841,7 +1841,7 @@ export default function Home() {
                                     handleDeleteChore(chore.id);
                                   }
                                 }}
-                                className="px-2 py-1 text-sm text-red-600 dark:text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-50 dark:hover:bg-red-950 rounded transition-all"
+                                className="px-2 py-1 text-sm text-red-500 dark:text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-100/40 dark:hover:bg-red-950/40 backdrop-blur-sm rounded-lg transition-all duration-300"
                                 aria-label="Delete chore"
                                 title="Delete this chore"
                               >
@@ -1852,7 +1852,7 @@ export default function Home() {
                             {/* Assignee selector dropdown - rendered outside relative container using fixed positioning */}
                               {openAssigneeSelector === chore.id && dropdownPosition && (
                                 <div
-                                  className="fixed z-[9999] w-48 bg-white dark:bg-zinc-800 border border-zinc-300 dark:border-zinc-700 rounded-lg shadow-lg p-2"
+                                  className="fixed z-[9999] w-48 backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-2xl shadow-glass-strong p-2 transition-all duration-300"
                                   style={{
                                     top: `${dropdownPosition.top}px`,
                                     right: `${dropdownPosition.right}px`,
@@ -1875,10 +1875,10 @@ export default function Home() {
                                                 // React re-renders and the badge list updates
                                                 handleToggleAssignee(chore.id, assignee.id);
                                               }}
-                                              className={`w-full text-left px-3 py-2 text-sm rounded transition-colors ${
+                                              className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-300 ${
                                                 isAssigned
-                                                  ? "bg-blue-100 dark:bg-blue-900 text-blue-900 dark:text-blue-100"
-                                                  : "hover:bg-zinc-100 dark:hover:bg-zinc-700 text-black dark:text-zinc-50"
+                                                  ? "bg-purple-200/60 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 backdrop-blur-sm border border-purple-300/30"
+                                                  : "hover:bg-white/40 dark:hover:bg-white/10 text-black dark:text-zinc-50"
                                               }`}
                                             >
                                               {isAssigned ? "✓ " : ""}
@@ -1897,7 +1897,7 @@ export default function Home() {
                                 {choreAssignees.map((assignee) => (
                                   <span
                                     key={assignee.id}
-                                    className="inline-flex items-center px-2 py-0.5 text-xs font-medium bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 rounded-full"
+                                    className="inline-flex items-center px-3 py-1 text-xs font-medium rounded-full bg-purple-200/60 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 backdrop-blur-sm border border-purple-300/30 shadow-sm"
                                   >
                                     {assignee.name}
                                   </span>

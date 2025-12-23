@@ -49,17 +49,62 @@
 }
 
 /* ============================================
-   BASE STYLES
+   BASE STYLES - LIQUID GLASS UI
    ============================================ */
-/* These styles apply to the entire page (the <body> element).
-   They set the default background, text color, and font for our app. */
+/* Liquid glass design with gradient backgrounds and frosted glass effects.
+   The gradient creates depth while glass cards float above with translucency. */
 body {
-  /* Use our custom background color variable */
-  background: var(--background);
+  /* Soft lavender to periwinkle gradient background for light mode */
+  background: linear-gradient(135deg, #E6E6FA 0%, #CCCCFF 50%, #E0E7FF 100%);
+  background-attachment: fixed;
   
   /* Use our custom text color variable */
   color: var(--foreground);
   
   /* Set a simple, readable font family */
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Dark mode gradient - deep purple to dark blue */
+@media (prefers-color-scheme: dark) {
+  body {
+    background: linear-gradient(135deg, #0F0F23 0%, #1A1A3E 50%, #0F0F23 100%);
+    background-attachment: fixed;
+  }
+}
+
+/* ============================================
+   GLASS MORPHISM UTILITIES
+   ============================================ */
+/* Frosted glass card effect for light mode */
+.glass-card {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Frosted glass card effect for dark mode */
+.glass-card-dark {
+  background: rgba(15, 15, 35, 0.7);
+  backdrop-filter: blur(12px) saturate(180%);
+  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ============================================
+   SHADOW SYSTEM
+   ============================================ */
+/* Soft, diffused shadows with purple tint for depth */
+.shadow-glass {
+  box-shadow: 
+    0 8px 32px rgba(134, 134, 255, 0.1),
+    0 2px 8px rgba(134, 134, 255, 0.05);
+}
+
+/* Stronger shadow for elevated elements (dropdowns, modals) */
+.shadow-glass-strong {
+  box-shadow: 
+    0 20px 60px rgba(134, 134, 255, 0.15),
+    0 8px 16px rgba(134, 134, 255, 0.1);
 }
