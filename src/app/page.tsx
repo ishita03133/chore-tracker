@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"; // Import hooks to manage component state and side effects
 import { createPortal } from "react-dom"; // Import createPortal to render dropdowns outside the DOM hierarchy
+import LoginScreen from "@/components/LoginScreen"; // Custom login component for household auth
 
 /* ============================================
    DATA MODELS - Type Definitions
@@ -56,6 +57,36 @@ interface Chore {
 */
 
 export default function Home() {
+  /* ============================================
+     AUTH STATE - User Identity & Household
+     ============================================
+     
+     LIGHTWEIGHT AUTH MODEL:
+     Instead of traditional email/password auth, we use a simple name + household code system.
+     This is perfect for household apps where:
+     - Trust is assumed (you trust your roommates)
+     - Quick setup is important (no email verification)
+     - Shared access is desired (everyone in household can edit)
+     
+     WHY STORE IN LOCALSTORAGE:
+     - Persists across page reloads
+     - No need for JWT tokens or cookies
+     - Easy to implement and understand
+     - Can easily upgrade to proper auth later without breaking existing code
+  */
+  
+  // Is the user authenticated (logged in)?
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  
+  // User's unique ID from Supabase profiles table
+  const [userId, setUserId] = useState<string | null>(null);
+  
+  // User's display name
+  const [userName, setUserName] = useState<string | null>(null);
+  
+  // Household code this user belongs to (shared between roommates)
+  const [householdId, setHouseholdId] = useState<string | null>(null);
+  
   /* ============================================
      STATE INITIALIZATION - HYDRATION SAFE
      ============================================
@@ -181,6 +212,30 @@ export default function Home() {
   useEffect(() => {
     setIsMounted(true);
   }, []);
+  
+  // Check for existing auth on mount
+  useEffect(() => {
+    // Load auth data from localStorage if it exists
+    const savedUserId = localStorage.getItem("userId");
+    const savedUserName = localStorage.getItem("userName");
+    const savedHouseholdId = localStorage.getItem("householdId");
+    
+    if (savedUserId && savedUserName && savedHouseholdId) {
+      // User is already logged in
+      setUserId(savedUserId);
+      setUserName(savedUserName);
+      setHouseholdId(savedHouseholdId);
+      setIsAuthenticated(true);
+    }
+  }, []);
+  
+  // Login handler - called when user successfully joins a household
+  const handleLogin = (name: string, household: string, uid: string) => {
+    setUserName(name);
+    setHouseholdId(household);
+    setUserId(uid);
+    setIsAuthenticated(true);
+  };
   
   // PHASE 1: Load data from localStorage on mount
   useEffect(() => {
@@ -843,18 +898,28 @@ export default function Home() {
     );
   };
 
+  // Show login screen if user is not authenticated
+  if (!isAuthenticated) {
+    return <LoginScreen onLogin={handleLogin} />;
+  }
+  
   return (
     <div className="flex min-h-screen items-center justify-center font-sans">
       {/* Main content container with centered layout and max width */}
       <main className="flex min-h-screen w-full max-w-3xl flex-col items-start py-16 px-8">
         {/* Header with title and add button */}
         <div className="w-full flex items-center justify-between mb-8">
-          {/* Page title */}
-          <h1 className="text-4xl font-semibold text-black dark:text-zinc-50">
-            Chore Tracker
-          </h1>
+          {/* Left side: Title and user info */}
+          <div>
+            <h1 className="text-4xl font-semibold text-black dark:text-zinc-50">
+              Chore Tracker
+            </h1>
+            <p className="text-sm text-purple-600/70 dark:text-purple-400/70 mt-1">
+              {userName} · {householdId}
+            </p>
+          </div>
           
-          {/* Add Chore button - only show when chores exist */}
+          {/* Right side: Add Chore button */}
           {chores.length > 0 && !isAddingChore && (
             <button
               onClick={() => {
