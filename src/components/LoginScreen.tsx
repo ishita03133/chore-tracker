@@ -87,40 +87,45 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {/* Card */}
-        <div className="backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-3xl shadow-glass-strong p-8 space-y-6">
-          {/* Header */}
-          <div className="text-center space-y-2">
-            <h1 className="text-4xl font-bold text-purple-700 dark:text-purple-300">
-              🏠 Chore Tracker
+    <div className="min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-purple-50 via-white to-blue-50 dark:from-gray-900 dark:via-purple-900 dark:to-gray-900">
+      <div className="w-full max-w-lg">
+        {/* Simple Card */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-10 border border-gray-200 dark:border-gray-700">
+          
+          {/* Clear Header */}
+          <div className="text-center mb-8">
+            <div className="text-6xl mb-4">🏠</div>
+            <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">
+              Join Your Household
             </h1>
-            <p className="text-sm text-purple-600/80 dark:text-purple-400/80">
-              Share chores with your household
+            <p className="text-gray-600 dark:text-gray-400">
+              Enter your name and household code to get started
             </p>
           </div>
 
-          {/* Form */}
-          <div className="space-y-4">
-            {/* Name Input */}
+          {/* Simple Form */}
+          <div className="space-y-5">
+            
+            {/* Name Input - Simple & Clear */}
             <div>
-              <label className="block text-sm font-medium text-purple-900 dark:text-purple-200 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 Your Name
               </label>
               <input
                 type="text"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Enter your name"
-                className="w-full px-4 py-3 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300 placeholder:text-purple-400/60"
+                onKeyPress={(e) => e.key === 'Enter' && handleJoinHousehold()}
+                placeholder="e.g., Alex"
+                className="w-full px-4 py-3 text-lg border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
                 disabled={isLoading}
+                autoFocus
               />
             </div>
 
-            {/* Household Code Input */}
+            {/* Household Code Input - Simple & Clear */}
             <div>
-              <label className="block text-sm font-medium text-purple-900 dark:text-purple-200 mb-2">
+              <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
                 Household Code
               </label>
               <div className="flex gap-2">
@@ -128,45 +133,46 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
                   type="text"
                   value={householdCode}
                   onChange={(e) => setHouseholdCode(e.target.value.toUpperCase())}
-                  placeholder="e.g., 2025-APT2B"
-                  className="flex-1 px-4 py-3 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300 placeholder:text-purple-400/60"
+                  onKeyPress={(e) => e.key === 'Enter' && handleJoinHousehold()}
+                  placeholder="e.g., HOME-2026"
+                  className="flex-1 px-4 py-3 text-lg border-2 border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all font-mono"
                   disabled={isLoading}
                 />
                 <button
                   onClick={generateRandomCode}
                   disabled={isLoading}
-                  className="px-4 py-3 bg-white/40 hover:bg-white/60 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-md border border-white/20 text-purple-700 dark:text-purple-300 rounded-xl transition-all duration-300 shadow-glass text-sm font-medium disabled:opacity-50"
+                  className="px-4 py-3 bg-gray-100 hover:bg-gray-200 dark:bg-gray-700 dark:hover:bg-gray-600 border-2 border-gray-300 dark:border-gray-600 rounded-lg transition-all disabled:opacity-50 text-2xl"
                   title="Generate random code"
                 >
                   🎲
                 </button>
               </div>
-              <p className="mt-2 text-xs text-purple-600/70 dark:text-purple-400/70">
-                Join an existing household or create a new one
+              <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                <span className="font-semibold">New household?</span> Create a code above. <span className="font-semibold">Joining?</span> Enter your roommate's code.
               </p>
             </div>
 
-            {/* Error Message */}
+            {/* Error Message - Clear & Prominent */}
             {error && (
-              <div className="p-3 rounded-xl bg-red-100/60 dark:bg-red-950/60 border border-red-300/30 text-red-700 dark:text-red-300 text-sm">
-                {error}
+              <div className="p-4 rounded-lg bg-red-50 dark:bg-red-900/30 border-2 border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 text-sm font-medium">
+                ⚠️ {error}
               </div>
             )}
 
-            {/* Submit Button */}
+            {/* Submit Button - Clear & Prominent */}
             <button
               onClick={handleJoinHousehold}
-              disabled={isLoading}
-              className="w-full px-6 py-3 bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-700/80 dark:hover:bg-purple-600/90 backdrop-blur-md border border-purple-500/20 text-white rounded-xl transition-all duration-300 shadow-glass font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={isLoading || !name.trim() || !householdCode.trim()}
+              className="w-full px-6 py-4 text-lg font-bold bg-purple-600 hover:bg-purple-700 disabled:bg-gray-300 dark:disabled:bg-gray-700 text-white rounded-lg transition-all disabled:cursor-not-allowed shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
             >
-              {isLoading ? "Joining..." : "Join Household"}
+              {isLoading ? "Joining Household..." : "Join Household"}
             </button>
           </div>
 
-          {/* Info */}
-          <div className="pt-4 border-t border-white/20">
-            <p className="text-xs text-center text-purple-600/70 dark:text-purple-400/70">
-              💡 Share your household code with roommates so they can join
+          {/* Clear Info Box */}
+          <div className="mt-8 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+            <p className="text-sm text-blue-800 dark:text-blue-200 text-center">
+              💡 <span className="font-semibold">Pro tip:</span> Share your household code with roommates so everyone can manage chores together!
             </p>
           </div>
         </div>

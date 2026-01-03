@@ -185,6 +185,9 @@ export default function Home() {
 
   // State to track if component is mounted (needed for portal rendering)
   const [isMounted, setIsMounted] = useState(false);
+  
+  // State to track if household code was just copied (for showing feedback)
+  const [codeCopied, setCodeCopied] = useState(false);
 
   /* ============================================
      LOCALSTORAGE PERSISTENCE - LOAD & SAVE
@@ -235,6 +238,72 @@ export default function Home() {
     setHouseholdId(household);
     setUserId(uid);
     setIsAuthenticated(true);
+  };
+  
+  // Sign out handler - clears auth and returns to login screen
+  const handleSignOut = () => {
+    // Confirm before signing out
+    if (confirm("Are you sure you want to sign out? Your chores will remain in the household.")) {
+      // Clear auth data from localStorage
+      localStorage.removeItem("userId");
+      localStorage.removeItem("userName");
+      localStorage.removeItem("householdId");
+      
+      // Reset auth state
+      setUserId(null);
+      setUserName(null);
+      setHouseholdId(null);
+      setIsAuthenticated(false);
+    }
+  };
+  
+  // Delete assignee handler - removes assignee and clears from chores/categories
+  const handleDeleteAssignee = (assigneeId: number) => {
+    const assignee = assignees.find((a) => a.id === assigneeId);
+    if (!assignee) return;
+    
+    // Check if assignee is used in any chores
+    const choresUsingAssignee = chores.filter((chore) =>
+      chore.assigneeIds.includes(assigneeId)
+    );
+    
+    // Check if assignee is used in any categories
+    const categoriesUsingAssignee = categories.filter((cat) =>
+      cat.assigneeIds.includes(assigneeId)
+    );
+    
+    // Build confirmation message
+    let confirmMessage = `Delete "${assignee.name}"?`;
+    if (choresUsingAssignee.length > 0 || categoriesUsingAssignee.length > 0) {
+      confirmMessage += `\n\nThis will remove them from:`;
+      if (choresUsingAssignee.length > 0) {
+        confirmMessage += `\n• ${choresUsingAssignee.length} chore(s)`;
+      }
+      if (categoriesUsingAssignee.length > 0) {
+        confirmMessage += `\n• ${categoriesUsingAssignee.length} category/categories`;
+      }
+    }
+    
+    if (confirm(confirmMessage)) {
+      // Remove assignee from all chores
+      setChores(
+        chores.map((chore) => ({
+          ...chore,
+          assigneeIds: chore.assigneeIds.filter((id) => id !== assigneeId),
+        }))
+      );
+      
+      // Remove assignee from all categories
+      setCategories(
+        categories.map((cat) => ({
+          ...cat,
+          assigneeIds: cat.assigneeIds.filter((id) => id !== assigneeId),
+        }))
+      );
+      
+      // Remove the assignee itself
+      setAssignees(assignees.filter((a) => a.id !== assigneeId));
+    }
   };
   
   // PHASE 1: Load data from localStorage on mount
@@ -902,35 +971,93 @@ export default function Home() {
   if (!isAuthenticated) {
     return <LoginScreen onLogin={handleLogin} />;
   }
-  
+
   return (
     <div className="flex min-h-screen items-center justify-center font-sans">
       {/* Main content container with centered layout and max width */}
       <main className="flex min-h-screen w-full max-w-3xl flex-col items-start py-16 px-8">
-        {/* Header with title and add button */}
-        <div className="w-full flex items-center justify-between mb-8">
-          {/* Left side: Title and user info */}
-          <div>
+        {/* Header with title and household info */}
+        <div className="w-full mb-8">
+          
+          {/* Title and Add Button Row */}
+          <div className="flex items-center justify-between mb-4">
             <h1 className="text-4xl font-semibold text-black dark:text-zinc-50">
-              Chore Tracker
-            </h1>
-            <p className="text-sm text-purple-600/70 dark:text-purple-400/70 mt-1">
-              {userName} · {householdId}
+          Chore Tracker
+        </h1>
+            
+            {/* Add Chore button */}
+            {chores.length > 0 && !isAddingChore && (
+              <button
+                onClick={() => {
+                  setIsAddingChore(true);
+                }}
+                className="px-4 py-2 bg-white/40 hover:bg-white/60 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-md border border-white/20 text-purple-700 dark:text-purple-300 rounded-xl transition-all duration-300 shadow-glass text-sm font-medium"
+              >
+                + Add Chore
+              </button>
+            )}
+          </div>
+
+          {/* Household Info Card - Prominent & Clear */}
+          <div className="p-4 rounded-xl bg-white/60 dark:bg-white/10 backdrop-blur-md border border-white/30 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-xs font-semibold text-purple-600/70 dark:text-purple-400/70 uppercase tracking-wide mb-1">
+                  Your Household
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="text-lg font-bold text-purple-900 dark:text-purple-100">
+                    {userName}
+                  </span>
+                  <span className="text-purple-400 dark:text-purple-600">•</span>
+                  <span className="text-lg font-mono font-bold text-purple-700 dark:text-purple-300">
+                    {householdId}
+                  </span>
+                </div>
+              </div>
+              
+              {/* Action Buttons */}
+              <div className="flex items-center gap-2">
+                {/* Copy Code Button */}
+                <button
+                  onClick={() => {
+                    navigator.clipboard.writeText(householdId || "");
+                    setCodeCopied(true);
+                    setTimeout(() => setCodeCopied(false), 2000);
+                  }}
+                  className="px-4 py-2 bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-700/80 dark:hover:bg-purple-600/90 text-white rounded-lg transition-all shadow-sm font-medium text-sm flex items-center gap-2"
+                  title="Copy household code"
+                >
+                  {codeCopied ? (
+                    <>
+                      <span>✓</span>
+                      <span>Copied!</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>📋</span>
+                      <span>Copy Code</span>
+                    </>
+                  )}
+                </button>
+                
+                {/* Sign Out Button */}
+                <button
+                  onClick={handleSignOut}
+                  className="px-4 py-2 bg-white/40 hover:bg-red-50/60 dark:bg-white/10 dark:hover:bg-red-900/30 border border-white/30 hover:border-red-300/50 dark:hover:border-red-700/50 text-gray-700 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 rounded-lg transition-all shadow-sm font-medium text-sm flex items-center gap-2"
+                  title="Sign out of household"
+                >
+                  <span>🚪</span>
+                  <span>Sign Out</span>
+                </button>
+              </div>
+            </div>
+            
+            {/* Helper text */}
+            <p className="text-xs text-purple-600/60 dark:text-purple-400/60 mt-2">
+              Share this code with roommates so they can join your household
             </p>
           </div>
-          
-          {/* Right side: Add Chore button */}
-          {chores.length > 0 && !isAddingChore && (
-            <button
-              onClick={() => {
-                // Show the inline input form for adding a new chore
-                setIsAddingChore(true);
-              }}
-              className="px-4 py-2 bg-white/40 hover:bg-white/60 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-md border border-white/20 text-purple-700 dark:text-purple-300 rounded-xl transition-all duration-300 shadow-glass text-sm font-medium"
-            >
-              + Add Chore
-            </button>
-          )}
         </div>
 
         {/* ============================================
@@ -1317,17 +1444,17 @@ export default function Home() {
                   {/* Category header - contains toggle button and assignee management */}
                   <div className="group flex items-center justify-between p-4 hover:bg-white/30 dark:hover:bg-white/10 transition-all duration-300 rounded-t-2xl">
                     {/* Left side: Toggle button with category name */}
-                    <button
-                      onClick={() => {
-                        // STATE UPDATE: When clicked, toggle this category's visibility
-                        // Step 1: handleToggleCategory flips isOpen (true ↔ false)
-                        // Step 2: React re-renders with new state
-                        // Step 3: Chevron rotates and chore list shows/hides
-                        handleToggleCategory(category.id);
-                      }}
+                  <button
+                    onClick={() => {
+                      // STATE UPDATE: When clicked, toggle this category's visibility
+                      // Step 1: handleToggleCategory flips isOpen (true ↔ false)
+                      // Step 2: React re-renders with new state
+                      // Step 3: Chevron rotates and chore list shows/hides
+                      handleToggleCategory(category.id);
+                    }}
                       className="flex items-center gap-2 text-left flex-1"
-                      aria-expanded={category.isOpen}
-                    >
+                    aria-expanded={category.isOpen}
+                  >
                       {/* Chevron icon - rotates based on isOpen state */}
                       {/* 
                         ROTATION LOGIC:
@@ -1377,7 +1504,7 @@ export default function Home() {
                               </span>
                             ) : null;
                           })}
-                        </div>
+                    </div>
                       )}
                       
                       {/* Button to manage category assignees - shows on hover or when assignees exist */}
@@ -1413,7 +1540,7 @@ export default function Home() {
                           title="Set default assignees for all chores in this category"
                         >
                           👤
-                        </button>
+                  </button>
 
                         {/* Category assignee selector dropdown */}
                         {isMounted && openCategoryAssigneeSelector === category.id && dropdownPosition && createPortal(
