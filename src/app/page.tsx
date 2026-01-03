@@ -188,6 +188,10 @@ export default function Home() {
   
   // State to track if household code was just copied (for showing feedback)
   const [codeCopied, setCodeCopied] = useState(false);
+  
+  // Loading and error states for Supabase operations
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   /* ============================================
      LOCALSTORAGE PERSISTENCE - LOAD & SAVE
@@ -971,11 +975,45 @@ export default function Home() {
   if (!isAuthenticated) {
     return <LoginScreen onLogin={handleLogin} />;
   }
+  
+  // Show loading screen while fetching data
+  if (isLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center font-sans">
+        <div className="text-center">
+          <div className="text-4xl mb-4">⏳</div>
+          <p className="text-xl font-medium text-gray-700 dark:text-gray-300">Loading...</p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Fetching your chores</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center font-sans">
       {/* Main content container with centered layout and max width */}
       <main className="flex min-h-screen w-full max-w-3xl flex-col items-start py-16 px-8">
+        {/* Error Banner - Shows at top if there's an error */}
+        {error && (
+          <div className="w-full mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800">
+            <div className="flex items-start justify-between">
+              <div className="flex items-start gap-3">
+                <span className="text-2xl">⚠️</span>
+                <div>
+                  <p className="font-semibold text-red-800 dark:text-red-200">Something went wrong</p>
+                  <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setError(null)}
+                className="text-red-600 dark:text-red-400 hover:text-red-800 dark:hover:text-red-200 font-bold"
+              >
+                ✕
+              </button>
+            </div>
+          </div>
+        )}
+        
         {/* Header with title and household info */}
         <div className="w-full mb-8">
           
@@ -991,7 +1029,8 @@ export default function Home() {
                 onClick={() => {
                   setIsAddingChore(true);
                 }}
-                className="px-4 py-2 bg-white/40 hover:bg-white/60 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-md border border-white/20 text-purple-700 dark:text-purple-300 rounded-xl transition-all duration-300 shadow-glass text-sm font-medium"
+                disabled={isLoading}
+                className="px-4 py-2 bg-white/40 hover:bg-white/60 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-md border border-white/20 text-purple-700 dark:text-purple-300 rounded-xl transition-all duration-300 shadow-glass text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 + Add Chore
               </button>
@@ -1025,7 +1064,8 @@ export default function Home() {
                     setCodeCopied(true);
                     setTimeout(() => setCodeCopied(false), 2000);
                   }}
-                  className="px-4 py-2 bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-700/80 dark:hover:bg-purple-600/90 text-white rounded-lg transition-all shadow-sm font-medium text-sm flex items-center gap-2"
+                  disabled={isLoading}
+                  className="px-4 py-2 bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-700/80 dark:hover:bg-purple-600/90 text-white rounded-lg transition-all shadow-sm font-medium text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Copy household code"
                 >
                   {codeCopied ? (
@@ -1044,7 +1084,8 @@ export default function Home() {
                 {/* Sign Out Button */}
                 <button
                   onClick={handleSignOut}
-                  className="px-4 py-2 bg-white/40 hover:bg-red-50/60 dark:bg-white/10 dark:hover:bg-red-900/30 border border-white/30 hover:border-red-300/50 dark:hover:border-red-700/50 text-gray-700 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 rounded-lg transition-all shadow-sm font-medium text-sm flex items-center gap-2"
+                  disabled={isLoading}
+                  className="px-4 py-2 bg-white/40 hover:bg-red-50/60 dark:bg-white/10 dark:hover:bg-red-900/30 border border-white/30 hover:border-red-300/50 dark:hover:border-red-700/50 text-gray-700 hover:text-red-600 dark:text-gray-300 dark:hover:text-red-400 rounded-lg transition-all shadow-sm font-medium text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Sign out of household"
                 >
                   <span>🚪</span>
@@ -1306,7 +1347,8 @@ export default function Home() {
                       // State change: Show the assignee input form
                       setIsAddingAssignee(true);
                     }}
-                    className="px-3 py-1.5 bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-600/60 dark:hover:bg-purple-700/70 backdrop-blur-sm text-white rounded-xl transition-all duration-300 shadow-glass text-sm font-medium"
+                    disabled={isLoading}
+                    className="px-3 py-1.5 bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-600/60 dark:hover:bg-purple-700/70 backdrop-blur-sm text-white rounded-xl transition-all duration-300 shadow-glass text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     + Add Assignee
                   </button>
@@ -1364,9 +1406,16 @@ export default function Home() {
                   {assignees.map((assignee) => (
                     <div
                       key={assignee.id}
-                      className="px-3 py-1.5 bg-white/40 dark:bg-white/10 border border-white/20 rounded-xl text-sm text-black dark:text-zinc-50 backdrop-blur-sm shadow-sm"
+                      className="flex items-center gap-2 px-3 py-1.5 bg-white/40 dark:bg-white/10 border border-white/20 rounded-xl text-sm text-black dark:text-zinc-50 backdrop-blur-sm shadow-sm hover:bg-white/60 dark:hover:bg-white/20 transition-all duration-300"
                     >
-                      {assignee.name}
+                      <span>{assignee.name}</span>
+                      <button
+                        onClick={() => handleDeleteAssignee(assignee.id)}
+                        className="text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300 transition-all duration-300 text-xs font-bold"
+                        title={`Delete ${assignee.name}`}
+                      >
+                        ✕
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -1381,7 +1430,8 @@ export default function Home() {
                     // State change: Show the category input form
                     setIsAddingCategory(true);
                   }}
-                  className="px-4 py-2 bg-white/30 hover:bg-white/50 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-sm border border-white/20 text-black dark:text-zinc-50 rounded-xl transition-all duration-300 text-sm font-medium"
+                  disabled={isLoading}
+                  className="px-4 py-2 bg-white/30 hover:bg-white/50 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-sm border border-white/20 text-black dark:text-zinc-50 rounded-xl transition-all duration-300 text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   + Add Category
                 </button>
