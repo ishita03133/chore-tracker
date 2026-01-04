@@ -12,41 +12,55 @@ import LoginScreen from "@/components/LoginScreen"; // Custom login component fo
 */
 
 // Assignee represents a person who can be assigned to chores
-// Why use an object instead of just a name?
-// - IDs allow us to update a person's name without breaking relationships
-// - We can add more properties later (email, avatar, etc.) without major refactoring
+// UPDATED FOR SUPABASE: Now uses UUID strings and includes household_id
 interface Assignee {
-  id: number; // Unique identifier - used to link chores to people
+  id: string; // UUID from Supabase (e.g., "550e8400-e29b-41d4-a716-446655440000")
   name: string; // Display name (e.g., "Alice", "Bob", "Roommate 1")
+  household_id: string; // Links to household - ensures data isolation
 }
 
 // Category groups related chores together (e.g., "Kitchen", "Bathroom", "Outdoor")
-// Why structure it this way?
-// - isOpen: Allows users to collapse/expand categories for better organization
-// - assigneeIds: Lets us filter which people can be assigned to chores in this category
-//   (useful for categories like "Kids' Rooms" where only certain people should be assigned)
+// UPDATED FOR SUPABASE: Now uses UUID strings and includes household_id
 interface Category {
-  id: number; // Unique identifier - used to link chores to categories
+  id: string; // UUID from Supabase
   name: string; // Display name (e.g., "Kitchen", "Bathroom", "Weekly Tasks")
-  isOpen: boolean; // Whether the category is expanded (true) or collapsed (false) in the UI
-  assigneeIds: number[]; // Array of assignee IDs who can be assigned to chores in this category
+  isOpen?: boolean; // LOCAL ONLY: Whether category is expanded in UI (not saved to DB)
+  assigneeIds: string[]; // Array of assignee UUIDs (default assignees for this category)
+  household_id: string; // Links to household - ensures data isolation
 }
 
 // Chore represents a single task that needs to be done
-// Why structure it this way?
-// - id: Unique identifier for easy lookup and updates
-// - title: Clear, descriptive name (better than "name" for tasks)
-// - completed: Simple boolean - either done or not done
-// - assigneeIds: Array allows multiple people to be assigned to one chore
-//   (e.g., "Deep clean kitchen" might need 2 people working together)
-// - categoryId: Optional because not all chores need to belong to a category
-//   (Some chores might be one-off tasks that don't fit into a category)
+// UPDATED FOR SUPABASE: Now uses UUID strings and includes household_id
 interface Chore {
-  id: number; // Unique identifier for each chore
+  id: string; // UUID from Supabase
   title: string; // Name/description of the chore (e.g., "Wash dishes", "Take out trash")
   completed: boolean; // Whether the chore has been completed (true) or not (false)
-  assigneeIds: number[]; // Array of assignee IDs - allows multiple people per chore
-  categoryId?: number; // Optional category ID - some chores don't need categories
+  assigneeIds: string[]; // Array of assignee UUIDs - allows multiple people per chore
+  categoryId?: string | null; // Optional category UUID - null means uncategorized
+  household_id: string; // Links to household - ensures data isolation
+}
+
+/* ============================================
+   DATABASE TYPES - Supabase Response Format
+   ============================================
+   These types match the snake_case format returned by Supabase.
+   We transform these to camelCase for app usage.
+*/
+
+interface CategoryDB {
+  id: string;
+  name: string;
+  household_id: string;
+  assignee_ids: string[];
+}
+
+interface ChoreDB {
+  id: string;
+  title: string;
+  completed: boolean;
+  household_id: string;
+  assignee_ids: string[];
+  category_id: string | null;
 }
 
 /* ============================================
@@ -55,6 +69,16 @@ interface Chore {
    useState hooks store our app's data in memory.
    When state changes, React automatically re-renders the component.
 */
+
+// Helper function to safely extract error messages from unknown error types
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  if (error && typeof error === 'object' && 'message' in error) {
+    return String((error as { message: unknown }).message);
+  }
+  return 'An unknown error occurred';
+}
 
 export default function Home() {
   /* ============================================
@@ -78,8 +102,8 @@ export default function Home() {
   // Is the user authenticated (logged in)?
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   
-  // User's unique ID from Supabase profiles table
-  const [userId, setUserId] = useState<string | null>(null);
+  // User's unique ID from Supabase profiles table (currently unused but kept for future features)
+  const [_userId, setUserId] = useState<string | null>(null);
   
   // User's display name
   const [userName, setUserName] = useState<string | null>(null);
@@ -136,7 +160,7 @@ export default function Home() {
   // State to store the selected category ID for the new chore being created
   // When undefined, the chore will be uncategorized
   // When set to a category ID, the chore will be assigned to that category
-  const [newChoreCategoryId, setNewChoreCategoryId] = useState<number | undefined>(undefined);
+  const [newChoreCategoryId, setNewChoreCategoryId] = useState<string | undefined>(undefined);
   
   // State to control whether the "add category" input form is visible
   // When true, the input form is shown; when false, it's hidden
@@ -157,17 +181,17 @@ export default function Home() {
   // State to track which chore's assignee selector is currently open
   // When set to a chore ID, that chore's assignee selector is visible
   // When null, no selector is open
-  const [openAssigneeSelector, setOpenAssigneeSelector] = useState<number | null>(null);
+  const [openAssigneeSelector, setOpenAssigneeSelector] = useState<string | null>(null);
 
   // State to track which category's assignee selector is currently open
   // When set to a category ID, that category's assignee selector is visible
   // When null, no selector is open
-  const [openCategoryAssigneeSelector, setOpenCategoryAssigneeSelector] = useState<number | null>(null);
+  const [openCategoryAssigneeSelector, setOpenCategoryAssigneeSelector] = useState<string | null>(null);
 
   // State to track which category is currently adding a chore inline
   // When set to a category ID, that category shows an inline chore creation form
   // When null, no inline form is shown
-  const [addingChoreInCategory, setAddingChoreInCategory] = useState<number | null>(null);
+  const [addingChoreInCategory, setAddingChoreInCategory] = useState<string | null>(null);
 
   // State to store the title for a new chore being added within a category
   const [newChoreTitleInCategory, setNewChoreTitleInCategory] = useState("");
@@ -175,7 +199,7 @@ export default function Home() {
   // State to track if user is adding a new assignee from within a chore's assignee selector
   // When set to a chore ID, that chore's selector shows "add new assignee" form
   // When null, no inline assignee creation is shown
-  const [addingAssigneeInChore, setAddingAssigneeInChore] = useState<number | null>(null);
+  const [addingAssigneeInChore, setAddingAssigneeInChore] = useState<string | null>(null);
 
   // State to store the name for a new assignee being created from a chore selector
   const [newAssigneeNameInChore, setNewAssigneeNameInChore] = useState("");
@@ -238,6 +262,7 @@ export default function Home() {
   
   // Login handler - called when user successfully joins a household
   const handleLogin = (name: string, household: string, uid: string) => {
+    console.log("🔍 DIAGNOSTIC: User logged in", { name, household, uid });
     setUserName(name);
     setHouseholdId(household);
     setUserId(uid);
@@ -260,9 +285,51 @@ export default function Home() {
       setIsAuthenticated(false);
     }
   };
+
+  // Manual refresh function for debugging sync issues
+  const handleManualRefresh = async () => {
+    if (!isAuthenticated || !householdId) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    console.log("🔄 DIAGNOSTIC: Manual refresh triggered for household", householdId);
+    
+    try {
+      const { supabase } = await import("@/lib/supabaseClient");
+      
+      // Fetch all chores fresh from database
+      const { data: choresData, error: choresError } = await supabase
+        .from("chores")
+        .select("*")
+        .eq("household_id", householdId);
+      
+      if (choresError) throw choresError;
+      
+      setChores((choresData || []).map((chore: ChoreDB) => ({
+        id: chore.id,
+        title: chore.title,
+        completed: chore.completed,
+        household_id: chore.household_id,
+        assigneeIds: chore.assignee_ids || [],
+        categoryId: chore.category_id || null
+      })));
+      
+      console.log("✅ DIAGNOSTIC: Refreshed - found", choresData?.length || 0, "chores");
+      
+      // Show success message
+      alert(`Refreshed! Found ${choresData?.length || 0} chores in household ${householdId}`);
+      
+    } catch (err: unknown) {
+      console.error("Failed to refresh:", err);
+      setError(getErrorMessage(err) || "Failed to refresh. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
   
   // Delete assignee handler - removes assignee and clears from chores/categories
-  const handleDeleteAssignee = (assigneeId: number) => {
+  const handleDeleteAssignee = async (assigneeId: string) => {
     const assignee = assignees.find((a) => a.id === assigneeId);
     if (!assignee) return;
     
@@ -288,114 +355,142 @@ export default function Home() {
       }
     }
     
-    if (confirm(confirmMessage)) {
-      // Remove assignee from all chores
-      setChores(
-        chores.map((chore) => ({
-          ...chore,
-          assigneeIds: chore.assigneeIds.filter((id) => id !== assigneeId),
-        }))
-      );
+    if (!confirm(confirmMessage)) return;
+    
+    // Optimistic UI update
+    setChores(chores.map((chore) => ({
+      ...chore,
+      assigneeIds: chore.assigneeIds.filter((id) => id !== assigneeId),
+    })));
+    setCategories(categories.map((cat) => ({
+      ...cat,
+      assigneeIds: cat.assigneeIds.filter((id) => id !== assigneeId),
+    })));
+    setAssignees(assignees.filter((a) => a.id !== assigneeId));
+    
+    try {
+      const { supabase } = await import("@/lib/supabaseClient");
       
-      // Remove assignee from all categories
-      setCategories(
-        categories.map((cat) => ({
-          ...cat,
-          assigneeIds: cat.assigneeIds.filter((id) => id !== assigneeId),
-        }))
-      );
+      // Remove assignee from all chores (update arrays, use snake_case for DB)
+      for (const chore of choresUsingAssignee) {
+        await supabase
+          .from("chores")
+          .update({ assignee_ids: chore.assigneeIds.filter(id => id !== assigneeId) })
+          .eq("id", chore.id);
+      }
       
-      // Remove the assignee itself
-      setAssignees(assignees.filter((a) => a.id !== assigneeId));
+      // Remove assignee from all categories (update arrays, use snake_case for DB)
+      for (const cat of categoriesUsingAssignee) {
+        await supabase
+          .from("categories")
+          .update({ assignee_ids: cat.assigneeIds.filter(id => id !== assigneeId) })
+          .eq("id", cat.id);
+      }
+      
+      // Delete the assignee
+      const { error: deleteError } = await supabase
+        .from("assignees")
+        .delete()
+        .eq("id", assigneeId);
+      
+      if (deleteError) throw deleteError;
+      
+    } catch (err: unknown) {
+      console.error("Failed to delete assignee:", err);
+      setError(getErrorMessage(err) || "Failed to delete assignee. Please refresh the page.");
     }
   };
   
-  // PHASE 1: Load data from localStorage on mount
-  useEffect(() => {
-    // This runs ONCE after component mounts (client-side only)
-    // At this point, hydration is complete, so it's safe to update state
-    
-    // NOTE: setState in useEffect is intentional here
-    // We're synchronizing with localStorage (external system) on initial mount
-    // This is the recommended pattern for loading persisted data in React
-    
-    try {
-      // Load chores
-      const savedChores = localStorage.getItem('chores');
-      if (savedChores) {
-        setChores(JSON.parse(savedChores));
-      }
-
-      // Load categories
-      const savedCategories = localStorage.getItem('categories');
-      if (savedCategories) {
-        setCategories(JSON.parse(savedCategories));
-      }
-
-      // Load assignees
-      const savedAssignees = localStorage.getItem('assignees');
-      if (savedAssignees) {
-        setAssignees(JSON.parse(savedAssignees));
-      }
-    } catch (error) {
-      // If loading fails (corrupted data, etc.), log error but don't crash
-      console.error('Failed to load data from localStorage:', error);
-      // App continues with empty arrays (graceful failure)
-    }
-  }, []); // Empty array = run once on mount, never again
-
   /* ============================================
-     LOCALSTORAGE PERSISTENCE - AUTO SAVE
+     SUPABASE DATA LOADING
      ============================================
      
-     AUTOMATIC SAVING:
-     Whenever chores, categories, or assignees change, save to localStorage.
-     This ensures data persists across page refreshes.
+     MIGRATION FROM LOCALSTORAGE TO SUPABASE:
+     Instead of loading from localStorage, we now fetch from Supabase database.
+     
+     WHY SUPABASE INSTEAD OF LOCALSTORAGE:
+     - Data is shared across all devices in the household
+     - Multiple users can see and edit the same chores in real-time
+     - Data persists even if you clear browser data
+     - Proper multi-user collaboration
      
      HOW IT WORKS:
-     1. User adds/edits/deletes a chore
-     2. State updates (setChores called)
-     3. React re-renders the component
-     4. useEffect detects chores changed (dependency array)
-     5. Automatically saves to localStorage
-     
-     DEPENDENCY ARRAYS EXPLAINED:
-     - [chores] means "run this effect whenever chores changes"
-     - We need 3 separate useEffects (one for each data type)
-     - This way we only save what actually changed
-     
-     NOTE: These also run on initial load (when we set data from localStorage)
-     That's OK - we're just saving the data we just loaded (harmless)
+     1. User logs in → householdId is set
+     2. This effect triggers → fetches all data for that household
+     3. Data is filtered by household_id (so you only see your household's data)
+     4. Loading state shows while fetching
+     5. Error state shows if something goes wrong
   */
   
-  // PHASE 2: Save chores whenever they change
+  // Load all data from Supabase when user logs in
   useEffect(() => {
-    try {
-      // Convert chores array to JSON string and save to localStorage
-      localStorage.setItem('chores', JSON.stringify(chores));
-    } catch (error) {
-      // localStorage can fail (quota exceeded, private browsing, etc.)
-      console.error('Failed to save chores to localStorage:', error);
-    }
-  }, [chores]); // Runs whenever chores array changes
-
-  // Save categories whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem('categories', JSON.stringify(categories));
-    } catch (error) {
-      console.error('Failed to save categories to localStorage:', error);
-    }
-  }, [categories]); // Runs whenever categories array changes
-
-  // Save assignees whenever they change
-  useEffect(() => {
-    try {
-      localStorage.setItem('assignees', JSON.stringify(assignees));
-    } catch (error) {
-      console.error('Failed to save assignees to localStorage:', error);
-    }
-  }, [assignees]); // Runs whenever assignees array changes
+    if (!isAuthenticated || !householdId) return;
+    
+    const loadDataFromSupabase = async () => {
+      setIsLoading(true);
+      setError(null);
+      
+      // DIAGNOSTIC: Log what we're loading
+      console.log("🔍 DIAGNOSTIC: Loading data for household", householdId);
+      
+      try {
+        const { supabase } = await import("@/lib/supabaseClient");
+        
+        // Fetch assignees for this household
+        const { data: assigneesData, error: assigneesError } = await supabase
+          .from("assignees")
+          .select("*")
+          .eq("household_id", householdId);
+        
+        if (assigneesError) throw assigneesError;
+        setAssignees(assigneesData || []);
+        console.log("✅ DIAGNOSTIC: Loaded assignees", assigneesData?.length || 0);
+        
+        // Fetch categories for this household
+        const { data: categoriesData, error: categoriesError } = await supabase
+          .from("categories")
+          .select("*")
+          .eq("household_id", householdId);
+        
+        if (categoriesError) throw categoriesError;
+        // Transform snake_case from DB to camelCase for app, add isOpen for UI
+        setCategories((categoriesData || []).map((cat: CategoryDB) => ({ 
+          id: cat.id,
+          name: cat.name,
+          household_id: cat.household_id,
+          assigneeIds: cat.assignee_ids || [],
+          isOpen: true 
+        })));
+        console.log("✅ DIAGNOSTIC: Loaded categories", categoriesData?.length || 0);
+        
+        // Fetch chores for this household
+        const { data: choresData, error: choresError } = await supabase
+          .from("chores")
+          .select("*")
+          .eq("household_id", householdId);
+        
+        if (choresError) throw choresError;
+        // Transform snake_case from DB to camelCase for app
+        setChores((choresData || []).map((chore: ChoreDB) => ({
+          id: chore.id,
+          title: chore.title,
+          completed: chore.completed,
+          household_id: chore.household_id,
+          assigneeIds: chore.assignee_ids || [],
+          categoryId: chore.category_id || null
+        })));
+        console.log("✅ DIAGNOSTIC: Loaded chores", choresData?.length || 0, choresData);
+        
+      } catch (err: unknown) {
+        console.error("Failed to load data from Supabase:", err);
+        setError(getErrorMessage(err) || "Failed to load your chores. Please refresh the page.");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    loadDataFromSupabase();
+  }, [isAuthenticated, householdId]); // Run when user logs in or household changes
 
   // Close dropdowns when clicking outside
   // This improves UX by automatically closing selectors when user clicks elsewhere
@@ -437,31 +532,67 @@ export default function Home() {
         - Sets to false to hide the form after submission
         - The empty state will disappear because chores.length > 0
   */
-  const handleAddChore = () => {
+  const handleAddChore = async () => {
     // Don't add empty chores - check if there's actual text
     if (newChoreTitle.trim() === "") {
       return; // Exit early if input is empty
     }
     
-    // Create a new chore object with all required properties
-    const newChore: Chore = {
-      id: Date.now(), // Use current timestamp as unique ID (simple approach)
-      title: newChoreTitle.trim(), // Remove extra spaces from start/end
-      completed: false, // New chores start as not completed
-      assigneeIds: [], // No assignees yet - empty array
-      categoryId: newChoreCategoryId, // Assign to selected category (or undefined for uncategorized)
-    };
+    // DIAGNOSTIC: Log what we're trying to save
+    console.log("🔍 DIAGNOSTIC: Attempting to add chore", {
+      title: newChoreTitle.trim(),
+      householdId: householdId,
+      isAuthenticated: isAuthenticated
+    });
     
-    // Update state: Add the new chore to the array
-    // Spread operator (...) copies all existing chores, then adds the new one
-    setChores([...chores, newChore]);
+    setIsLoading(true);
+    setError(null);
     
-    // Clear the input field and category selection
-    setNewChoreTitle("");
-    setNewChoreCategoryId(undefined);
-
-    // Hide the input form (it will stay hidden because chores.length > 0 now)
-    setIsAddingChore(false);
+    try {
+      const { supabase } = await import("@/lib/supabaseClient");
+      
+      // Insert new chore into Supabase (use snake_case for DB)
+      const { data, error: insertError } = await supabase
+        .from("chores")
+        .insert({
+          title: newChoreTitle.trim(),
+          completed: false,
+          assignee_ids: [],
+          category_id: newChoreCategoryId || null,
+          household_id: householdId,
+        })
+        .select()
+        .single();
+      
+      // DIAGNOSTIC: Log the result
+      console.log("✅ DIAGNOSTIC: Chore added successfully", data);
+      
+      if (insertError) throw insertError;
+      
+      // Transform DB response to camelCase for app state (only include needed fields)
+      const choreForState: Chore = {
+        id: data.id,
+        title: data.title,
+        completed: data.completed,
+        household_id: data.household_id,
+        assigneeIds: data.assignee_ids || [],
+        categoryId: data.category_id || null
+      };
+      
+      // Add to local state
+      setChores([...chores, choreForState]);
+      
+      // Clear the input field and category selection
+      setNewChoreTitle("");
+      setNewChoreCategoryId(undefined);
+      setIsAddingChore(false);
+      
+    } catch (err: unknown) {
+      console.error("Failed to add chore:", err);
+      setError(getErrorMessage(err) || "Failed to add chore. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   /* ============================================
@@ -476,27 +607,56 @@ export default function Home() {
      - Clear visual context - user sees exactly where chore will appear
      - Better organization - encourages categorization
   */
-  const handleAddChoreInCategory = (categoryId: number) => {
+  const handleAddChoreInCategory = async (categoryId: string) => {
     // Don't add empty chores
     if (newChoreTitleInCategory.trim() === "") {
       return;
     }
 
-    // Create chore with category pre-assigned
-    const newChore: Chore = {
-      id: Date.now(),
-      title: newChoreTitleInCategory.trim(),
-      completed: false,
-      assigneeIds: [], // Will inherit from category if category has default assignees
-      categoryId: categoryId, // Pre-assigned to this category
-    };
+    setIsLoading(true);
+    setError(null);
 
-    // Add to chores array
-    setChores([...chores, newChore]);
-
-    // Clear input and hide form
-    setNewChoreTitleInCategory("");
-    setAddingChoreInCategory(null);
+    try {
+      const { supabase } = await import("@/lib/supabaseClient");
+      
+      // Insert new chore into Supabase (use snake_case for DB)
+      const { data, error: insertError } = await supabase
+        .from("chores")
+        .insert({
+          title: newChoreTitleInCategory.trim(),
+          completed: false,
+          assignee_ids: [],
+          category_id: categoryId,
+          household_id: householdId,
+        })
+        .select()
+        .single();
+      
+      if (insertError) throw insertError;
+      
+      // Transform DB response to camelCase for app state (only include needed fields)
+      const choreForState: Chore = {
+        id: data.id,
+        title: data.title,
+        completed: data.completed,
+        household_id: data.household_id,
+        assigneeIds: data.assignee_ids || [],
+        categoryId: data.category_id || null
+      };
+      
+      // Add to local state
+      setChores([...chores, choreForState]);
+      
+      // Clear input and hide form
+      setNewChoreTitleInCategory("");
+      setAddingChoreInCategory(null);
+      
+    } catch (err: unknown) {
+      console.error("Failed to add chore:", err);
+      setError(getErrorMessage(err) || "Failed to add chore. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   /* ============================================
@@ -517,7 +677,7 @@ export default function Home() {
      - Faster workflow - reduces clicks from 6+ to 2
      - Better UX - action completes in context
   */
-  const handleQuickAddAssignee = (choreId: number) => {
+  const handleQuickAddAssignee = async (choreId: string) => {
     // Don't add empty assignees
     if (newAssigneeNameInChore.trim() === "") {
       return;
@@ -528,34 +688,60 @@ export default function Home() {
       (assignee) => assignee.name.toLowerCase() === newAssigneeNameInChore.trim().toLowerCase()
     );
     if (nameExists) {
-      return; // Exit if name already exists
+      setError("An assignee with this name already exists.");
+      return;
     }
 
-    // Create new assignee
-    const newAssignee: Assignee = {
-      id: Date.now(),
-      name: newAssigneeNameInChore.trim(),
-    };
+    setIsLoading(true);
+    setError(null);
 
-    // Add to assignees array
-    setAssignees([...assignees, newAssignee]);
-
-    // Automatically assign to the current chore
-    setChores(
-      chores.map((chore) => {
-        if (chore.id === choreId) {
-          return {
-            ...chore,
-            assigneeIds: [...chore.assigneeIds, newAssignee.id],
-          };
-        }
-        return chore;
-      })
-    );
-
-    // Clear input and hide form
-    setNewAssigneeNameInChore("");
-    setAddingAssigneeInChore(null);
+    try {
+      const { supabase } = await import("@/lib/supabaseClient");
+      
+      // Create new assignee in Supabase
+      const { data: newAssignee, error: insertError } = await supabase
+        .from("assignees")
+        .insert({
+          name: newAssigneeNameInChore.trim(),
+          household_id: householdId,
+        })
+        .select()
+        .single();
+      
+      if (insertError) throw insertError;
+      
+      // Add to local assignees array
+      setAssignees([...assignees, newAssignee]);
+      
+      // Update chore to include the new assignee
+      const chore = chores.find(c => c.id === choreId);
+      if (chore) {
+        const newAssigneeIds = [...chore.assigneeIds, newAssignee.id];
+        
+        // Update in Supabase (use snake_case for DB)
+        const { error: updateError } = await supabase
+          .from("chores")
+          .update({ assignee_ids: newAssigneeIds })
+          .eq("id", choreId);
+        
+        if (updateError) throw updateError;
+        
+        // Update local state
+        setChores(chores.map((c) =>
+          c.id === choreId ? { ...c, assigneeIds: newAssigneeIds } : c
+        ));
+      }
+      
+      // Clear input and hide form
+      setNewAssigneeNameInChore("");
+      setAddingAssigneeInChore(null);
+      
+    } catch (err: unknown) {
+      console.error("Failed to add assignee:", err);
+      setError(getErrorMessage(err) || "Failed to add assignee. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   /* ============================================
@@ -571,24 +757,33 @@ export default function Home() {
        - Keeps all other chores unchanged
        - React detects the change and re-renders with updated styling
   */
-  const handleToggleChore = (choreId: number) => {
-    // Update the chores array by mapping over each chore
+  const handleToggleChore = async (choreId: string) => {
+    // Find the chore to toggle
+    const chore = chores.find(c => c.id === choreId);
+    if (!chore) return;
+    
+    // Optimistic UI update - update immediately for responsiveness
     setChores(
-      chores.map((chore) => {
-        // If this is the chore we want to toggle
-        if (chore.id === choreId) {
-          // Return a new chore object with toggled completed status
-          // Spread operator (...) copies all existing properties
-          // Then we override just the completed property
-          return {
-            ...chore,
-            completed: !chore.completed, // Toggle: true becomes false, false becomes true
-          };
-        }
-        // Return unchanged chore if ID doesn't match
-        return chore;
-      })
+      chores.map((c) => c.id === choreId ? { ...c, completed: !c.completed } : c)
     );
+    
+    try {
+      const { supabase } = await import("@/lib/supabaseClient");
+      
+      // Update completed status in Supabase
+      const { error: updateError } = await supabase
+        .from("chores")
+        .update({ completed: !chore.completed })
+        .eq("id", choreId);
+      
+      if (updateError) throw updateError;
+      
+    } catch (err: unknown) {
+      console.error("Failed to toggle chore:", err);
+      // Revert optimistic update on error
+      setChores(chores.map((c) => c.id === choreId ? { ...c, completed: chore.completed } : c));
+      setError(getErrorMessage(err) || "Failed to update chore. Please try again.");
+    }
   };
 
   /* ============================================
@@ -615,7 +810,7 @@ export default function Home() {
      3. setIsAddingAssignee: Hides the input form
         - Sets to false to hide the form after submission
   */
-  const handleAddAssignee = () => {
+  const handleAddAssignee = async () => {
     // Don't add empty assignees - check if there's actual text
     if (newAssigneeName.trim() === "") {
       return; // Exit early if input is empty
@@ -626,25 +821,41 @@ export default function Home() {
       (assignee) => assignee.name.toLowerCase() === newAssigneeName.trim().toLowerCase()
     );
     if (nameExists) {
-      // Could show an error message here, but keeping it simple for now
+      setError("An assignee with this name already exists.");
       return; // Exit early if name already exists
     }
 
-    // Create a new assignee object with all required properties
-    const newAssignee: Assignee = {
-      id: Date.now(), // Use current timestamp as unique ID (simple approach)
-      name: newAssigneeName.trim(), // Remove extra spaces from start/end
-    };
+    setIsLoading(true);
+    setError(null);
 
-    // Update state: Add the new assignee to the array
-    // Spread operator (...) copies all existing assignees, then adds the new one
-    setAssignees([...assignees, newAssignee]);
+    try {
+      const { supabase } = await import("@/lib/supabaseClient");
+      
+      // Insert new assignee into Supabase
+      const { data, error: insertError } = await supabase
+        .from("assignees")
+        .insert({
+          name: newAssigneeName.trim(),
+          household_id: householdId,
+        })
+        .select()
+        .single();
+      
+      if (insertError) throw insertError;
+      
+      // Add to local state
+      setAssignees([...assignees, data]);
 
     // Clear the input field
     setNewAssigneeName("");
-
-    // Hide the input form
     setIsAddingAssignee(false);
+      
+    } catch (err: unknown) {
+      console.error("Failed to add assignee:", err);
+      setError(getErrorMessage(err) || "Failed to add assignee. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   /* ============================================
@@ -664,29 +875,53 @@ export default function Home() {
      3. setIsAddingCategory: Hides the input form
         - Sets to false to hide the form after submission
   */
-  const handleAddCategory = () => {
+  const handleAddCategory = async () => {
     // Don't add empty categories - check if there's actual text
     if (newCategoryName.trim() === "") {
       return; // Exit early if input is empty
     }
 
-    // Create a new category object with all required properties
-    const newCategory: Category = {
-      id: Date.now(), // Use current timestamp as unique ID (simple approach)
-      name: newCategoryName.trim(), // Remove extra spaces from start/end
-      isOpen: true, // New categories start as open (expanded) by default
-      assigneeIds: [], // No assignee restrictions yet - empty array
-    };
+    setIsLoading(true);
+    setError(null);
 
-    // Update state: Add the new category to the array
-    // Spread operator (...) copies all existing categories, then adds the new one
-    setCategories([...categories, newCategory]);
+    try {
+      const { supabase } = await import("@/lib/supabaseClient");
+      
+      // Insert new category into Supabase (use snake_case for DB)
+      const { data, error: insertError } = await supabase
+        .from("categories")
+        .insert({
+          name: newCategoryName.trim(),
+          assignee_ids: [],
+          household_id: householdId,
+        })
+        .select()
+        .single();
+      
+      if (insertError) throw insertError;
+      
+      // Transform DB response to camelCase for app state (only include needed fields)
+      const categoryForState: Category = {
+        id: data.id,
+        name: data.name,
+        household_id: data.household_id,
+        assigneeIds: data.assignee_ids || [],
+        isOpen: true
+      };
+      
+      // Add to local state with isOpen UI property
+      setCategories([...categories, categoryForState]);
 
     // Clear the input field
     setNewCategoryName("");
-
-    // Hide the input form
     setIsAddingCategory(false);
+      
+    } catch (err: unknown) {
+      console.error("Failed to add category:", err);
+      setError(getErrorMessage(err) || "Failed to add category. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   /* ============================================
@@ -706,33 +941,39 @@ export default function Home() {
      - Individual chore overrides when needed (e.g., "Deep clean oven" → assigned to Bob)
      - Easy bulk management without losing granular control
   */
-  const handleToggleCategoryAssignee = (categoryId: number, assigneeId: number) => {
-    // Update the categories array by mapping over each category
-    setCategories(
-      categories.map((category) => {
-        // If this is the category we want to update
-        if (category.id === categoryId) {
-          // Check if assignee is already assigned to this category
-          const isAssigned = category.assigneeIds.includes(assigneeId);
-          
-          if (isAssigned) {
-            // Remove assignee: filter out the assignee ID
-            return {
-              ...category,
-              assigneeIds: category.assigneeIds.filter((id) => id !== assigneeId),
-            };
-          } else {
-            // Add assignee: spread existing IDs and add the new one
-            return {
-              ...category,
-              assigneeIds: [...category.assigneeIds, assigneeId],
-            };
-          }
-        }
-        // Return unchanged category if ID doesn't match
-        return category;
-      })
-    );
+  const handleToggleCategoryAssignee = async (categoryId: string, assigneeId: string) => {
+    const category = categories.find(c => c.id === categoryId);
+    if (!category) return;
+    
+    const isAssigned = category.assigneeIds.includes(assigneeId);
+    const newAssigneeIds = isAssigned
+      ? category.assigneeIds.filter((id) => id !== assigneeId)
+      : [...category.assigneeIds, assigneeId];
+    
+    // Optimistic UI update
+    setCategories(categories.map((cat) =>
+      cat.id === categoryId ? { ...cat, assigneeIds: newAssigneeIds } : cat
+    ));
+    
+    try {
+      const { supabase } = await import("@/lib/supabaseClient");
+      
+      // Update category assignees in Supabase (use snake_case for DB)
+      const { error: updateError } = await supabase
+        .from("categories")
+        .update({ assignee_ids: newAssigneeIds })
+        .eq("id", categoryId);
+      
+      if (updateError) throw updateError;
+      
+    } catch (err: unknown) {
+      console.error("Failed to update category assignees:", err);
+      // Revert optimistic update
+      setCategories(categories.map((cat) =>
+        cat.id === categoryId ? { ...cat, assigneeIds: category.assigneeIds } : cat
+      ));
+      setError(getErrorMessage(err) || "Failed to update assignees. Please try again.");
+    }
   };
 
   /* ============================================
@@ -756,7 +997,7 @@ export default function Home() {
      The isInherited flag allows us to style inherited assignees differently
      (e.g., lighter color, italic text, or "inherited" label)
   */
-  const getEffectiveAssignees = (chore: Chore): { assigneeIds: number[]; isInherited: boolean } => {
+  const getEffectiveAssignees = (chore: Chore): { assigneeIds: string[]; isInherited: boolean } => {
     // If chore has direct assignees, use them (override mode)
     if (chore.assigneeIds.length > 0) {
       return {
@@ -810,33 +1051,39 @@ export default function Home() {
      - Each assignee can be independently added or removed
      - The array is updated using filter (remove) or spread (add)
   */
-  const handleToggleAssignee = (choreId: number, assigneeId: number) => {
-    // Update the chores array by mapping over each chore
-    setChores(
-      chores.map((chore) => {
-        // If this is the chore we want to update
-        if (chore.id === choreId) {
-          // Check if assignee is already assigned
+  const handleToggleAssignee = async (choreId: string, assigneeId: string) => {
+    const chore = chores.find(c => c.id === choreId);
+    if (!chore) return;
+    
           const isAssigned = chore.assigneeIds.includes(assigneeId);
-          
-          if (isAssigned) {
-            // Remove assignee: filter out the assignee ID
-            return {
-              ...chore,
-              assigneeIds: chore.assigneeIds.filter((id) => id !== assigneeId),
-            };
-          } else {
-            // Add assignee: spread existing IDs and add the new one
-            return {
-              ...chore,
-              assigneeIds: [...chore.assigneeIds, assigneeId],
-            };
-          }
-        }
-        // Return unchanged chore if ID doesn't match
-        return chore;
-      })
-    );
+    const newAssigneeIds = isAssigned
+      ? chore.assigneeIds.filter((id) => id !== assigneeId)
+      : [...chore.assigneeIds, assigneeId];
+    
+    // Optimistic UI update
+    setChores(chores.map((c) =>
+      c.id === choreId ? { ...c, assigneeIds: newAssigneeIds } : c
+    ));
+    
+    try {
+      const { supabase } = await import("@/lib/supabaseClient");
+      
+      // Update chore assignees in Supabase (use snake_case for DB)
+      const { error: updateError } = await supabase
+        .from("chores")
+        .update({ assignee_ids: newAssigneeIds })
+        .eq("id", choreId);
+      
+      if (updateError) throw updateError;
+      
+    } catch (err: unknown) {
+      console.error("Failed to update chore assignees:", err);
+      // Revert optimistic update
+      setChores(chores.map((c) =>
+        c.id === choreId ? { ...c, assigneeIds: chore.assigneeIds } : c
+      ));
+      setError(getErrorMessage(err) || "Failed to update assignees. Please try again.");
+    }
   };
 
   /* ============================================
@@ -854,10 +1101,28 @@ export default function Home() {
      
      NOTE: This is permanent - no undo functionality (yet)
   */
-  const handleDeleteChore = (choreId: number) => {
-    // Filter out the chore with the matching ID
-    // This creates a new array without that chore
+  const handleDeleteChore = async (choreId: string) => {
+    if (!confirm("Delete this chore?")) return;
+    
+    // Optimistic UI update
     setChores(chores.filter((chore) => chore.id !== choreId));
+    
+    try {
+      const { supabase } = await import("@/lib/supabaseClient");
+      
+      // Delete from Supabase
+      const { error: deleteError } = await supabase
+        .from("chores")
+        .delete()
+        .eq("id", choreId);
+      
+      if (deleteError) throw deleteError;
+      
+    } catch (err: unknown) {
+      console.error("Failed to delete chore:", err);
+      // Could revert optimistic update here, but for simplicity we'll just show error
+      setError(getErrorMessage(err) || "Failed to delete chore. Please refresh the page.");
+    }
   };
 
   /* ============================================
@@ -876,22 +1141,39 @@ export default function Home() {
         b. setChores: Updates all chores in that category to be uncategorized
      4. React re-renders with category removed and chores moved to uncategorized
   */
-  const handleDeleteCategory = (categoryId: number) => {
-    // Remove the category
-    setCategories(categories.filter((category) => category.id !== categoryId));
+  const handleDeleteCategory = async (categoryId: string) => {
+    const category = categories.find(c => c.id === categoryId);
+    if (!category) return;
     
-    // Move all chores in this category to uncategorized
-    setChores(
-      chores.map((chore) => {
-        if (chore.categoryId === categoryId) {
-          return {
-            ...chore,
-            categoryId: undefined, // Remove category assignment
-          };
-        }
-        return chore;
-      })
-    );
+    if (!confirm(`Delete category "${category.name}"? Chores will be moved to Uncategorized.`)) return;
+    
+    // Optimistic UI update
+    setCategories(categories.filter((c) => c.id !== categoryId));
+    setChores(chores.map((chore) => chore.categoryId === categoryId ? { ...chore, categoryId: null } : chore));
+    
+    try {
+      const { supabase } = await import("@/lib/supabaseClient");
+      
+      // Move all chores in this category to uncategorized (use snake_case for DB)
+      const { error: updateError } = await supabase
+        .from("chores")
+        .update({ category_id: null })
+        .eq("category_id", categoryId);
+      
+      if (updateError) throw updateError;
+      
+      // Delete the category
+      const { error: deleteError } = await supabase
+        .from("categories")
+        .delete()
+        .eq("id", categoryId);
+      
+      if (deleteError) throw deleteError;
+      
+    } catch (err: unknown) {
+      console.error("Failed to delete category:", err);
+      setError(getErrorMessage(err) || "Failed to delete category. Please refresh the page.");
+    }
   };
 
   /* ============================================
@@ -909,22 +1191,27 @@ export default function Home() {
         - Pass undefined to remove categorization (move back to uncategorized)
      4. React re-renders and the chore appears in the new category
   */
-  const handleMoveChoreToCategory = (choreId: number, categoryId: number | undefined) => {
-    // Update the chores array by mapping over each chore
-    setChores(
-      chores.map((chore) => {
-        // If this is the chore we want to move
-        if (chore.id === choreId) {
-          // Return a new chore object with updated categoryId
-          return {
-            ...chore,
-            categoryId: categoryId, // Set new category (or undefined for uncategorized)
-          };
-        }
-        // Return unchanged chore if ID doesn't match
-        return chore;
-      })
-    );
+  const handleMoveChoreToCategory = async (choreId: string, categoryId: string | null) => {
+    // Optimistic UI update
+    setChores(chores.map((chore) =>
+      chore.id === choreId ? { ...chore, categoryId } : chore
+    ));
+    
+    try {
+      const { supabase } = await import("@/lib/supabaseClient");
+      
+      // Update chore category in Supabase (use snake_case for DB)
+      const { error: updateError } = await supabase
+        .from("chores")
+        .update({ category_id: categoryId })
+        .eq("id", choreId);
+      
+      if (updateError) throw updateError;
+      
+    } catch (err: unknown) {
+      console.error("Failed to move chore:", err);
+      setError(getErrorMessage(err) || "Failed to move chore. Please refresh the page.");
+    }
   };
 
   /* ============================================
@@ -950,8 +1237,9 @@ export default function Home() {
      4. React re-renders the component
      5. The chevron rotates and the chore list shows/hides based on the new isOpen value
   */
-  const handleToggleCategory = (categoryId: number) => {
+  const handleToggleCategory = (categoryId: string) => {
     // Update the categories array by mapping over each category
+    // Note: isOpen is UI-only state, not saved to Supabase
     setCategories(
       categories.map((category) => {
         // If this is the category we want to toggle
@@ -978,7 +1266,7 @@ export default function Home() {
   
   // Show loading screen while fetching data
   if (isLoading) {
-    return (
+  return (
       <div className="flex min-h-screen items-center justify-center font-sans">
         <div className="text-center">
           <div className="text-4xl mb-4">⏳</div>
@@ -1079,6 +1367,17 @@ export default function Home() {
                       <span>Copy Code</span>
                     </>
                   )}
+                </button>
+                
+                {/* Refresh Button (for debugging sync issues) */}
+                <button
+                  onClick={handleManualRefresh}
+                  disabled={isLoading}
+                  className="px-4 py-2 bg-white/40 hover:bg-blue-50/60 dark:bg-white/10 dark:hover:bg-blue-900/30 border border-white/30 hover:border-blue-300/50 dark:hover:border-blue-700/50 text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 rounded-lg transition-all shadow-sm font-medium text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                  title="Refresh chores from database"
+                >
+                  <span>🔄</span>
+                  <span>Refresh</span>
                 </button>
                 
                 {/* Sign Out Button */}
@@ -1182,7 +1481,7 @@ export default function Home() {
               value={newChoreCategoryId ?? ""}
               onChange={(e) => {
                 // Update selected category (empty string = undefined = uncategorized)
-                const value = e.target.value === "" ? undefined : parseInt(e.target.value);
+                const value = e.target.value === "" ? undefined : e.target.value;
                 setNewChoreCategoryId(value);
               }}
               className="w-full px-4 py-3 mb-3 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300"
@@ -1272,7 +1571,7 @@ export default function Home() {
                   <select
                     value={newChoreCategoryId ?? ""}
                     onChange={(e) => {
-                      const value = e.target.value === "" ? undefined : parseInt(e.target.value);
+                      const value = e.target.value === "" ? undefined : e.target.value;
                       setNewChoreCategoryId(value);
                     }}
                     className="w-full px-4 py-3 mb-3 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300"
@@ -1779,7 +2078,7 @@ export default function Home() {
                                     <select
                                       value={chore.categoryId ?? ""}
                                       onChange={(e) => {
-                                        const categoryId = e.target.value === "" ? undefined : parseInt(e.target.value);
+                                        const categoryId = e.target.value === "" ? null : e.target.value;
                                         handleMoveChoreToCategory(chore.id, categoryId);
                                       }}
                                       onClick={(e) => e.stopPropagation()} // Prevent category accordion toggle
@@ -2061,7 +2360,7 @@ export default function Home() {
                                   <select
                                     value=""
                                     onChange={(e) => {
-                                      const categoryId = e.target.value === "" ? undefined : parseInt(e.target.value);
+                                      const categoryId = e.target.value === "" ? null : e.target.value;
                                       handleMoveChoreToCategory(chore.id, categoryId);
                                     }}
                                     className="px-2 py-1 text-xs border border-white/30 rounded-lg bg-white/50 dark:bg-white/10 backdrop-blur-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer transition-all duration-300"

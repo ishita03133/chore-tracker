@@ -34,14 +34,15 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       const normalizedCode = householdCode.trim().toUpperCase();
 
       // Check if household exists, if not create it
+      // Use .maybeSingle() instead of .single() to avoid errors when no rows found
       const { data: existingHousehold, error: householdFetchError } = await supabase
         .from("households")
         .select("id")
         .eq("id", normalizedCode)
-        .single();
+        .maybeSingle();
 
-      if (householdFetchError && householdFetchError.code !== "PGRST116") {
-        // PGRST116 = not found (which is ok)
+      // maybeSingle returns null if not found (no error), so we only throw on real errors
+      if (householdFetchError) {
         throw householdFetchError;
       }
 
@@ -72,9 +73,10 @@ export default function LoginScreen({ onLogin }: LoginScreenProps) {
       localStorage.setItem("householdId", normalizedCode);
 
       onLogin(name.trim(), normalizedCode, profile.id);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Login error:", err);
-      setError(err.message || "Failed to join household. Please try again.");
+      const errorMessage = err instanceof Error ? err.message : "Failed to join household. Please try again.";
+      setError(errorMessage);
     } finally {
       setIsLoading(false);
     }
