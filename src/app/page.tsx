@@ -73,11 +73,11 @@ interface ChoreDB {
 // Helper function to safely extract error messages from unknown error types
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
-  if (typeof error === 'string') return error;
-  if (error && typeof error === 'object' && 'message' in error) {
+  if (typeof error === "string") return error;
+  if (error && typeof error === "object" && "message" in error) {
     return String((error as { message: unknown }).message);
   }
-  return 'An unknown error occurred';
+  return "An unknown error occurred";
 }
 
 export default function Home() {
@@ -92,25 +92,27 @@ export default function Home() {
      - Quick setup is important (no email verification)
      - Shared access is desired (everyone in household can edit)
      
-     WHY STORE IN LOCALSTORAGE:
-     - Persists across page reloads
-     - No need for JWT tokens or cookies
+     WHY STORE SESSION IN LOCALSTORAGE:
+     - Session persists across page reloads (userId, userName, householdId)
+     - Enables automatic login without re-entering credentials
+     - No need for JWT tokens or session cookies
      - Easy to implement and understand
-     - Can easily upgrade to proper auth later without breaking existing code
+     - All actual data (chores, categories, assignees) is stored in Supabase
+     - Can easily upgrade to proper auth (OAuth, etc.) later without breaking existing code
   */
-  
+
   // Is the user authenticated (logged in)?
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  
+
   // User's unique ID from Supabase profiles table (currently unused but kept for future features)
   const [_userId, setUserId] = useState<string | null>(null);
-  
+
   // User's display name
   const [userName, setUserName] = useState<string | null>(null);
-  
+
   // Household code this user belongs to (shared between roommates)
   const [householdId, setHouseholdId] = useState<string | null>(null);
-  
+
   /* ============================================
      STATE INITIALIZATION - HYDRATION SAFE
      ============================================
@@ -122,20 +124,20 @@ export default function Home() {
      1. Server (Build): Renders static HTML with empty arrays → Fast initial load
      2. Browser (First Paint): Shows server HTML instantly → User sees page immediately
      3. Client (Hydration): React "hydrates" the HTML, making it interactive
-     4. After Hydration: useEffect runs, loads localStorage data, updates display
+     4. After Hydration: useEffect runs, loads data from Supabase, updates display
      
      WHY WE START WITH EMPTY ARRAYS:
-     - Server: Always renders with [] (no localStorage on server)
+     - Server: Always renders with [] (no Supabase connection on server)
      - Client: Also starts with [] (matching server HTML)
-     - After hydration: useEffect loads data from localStorage
+     - After hydration: useEffect loads data from Supabase
      - Result: No hydration mismatch! ✅
      
      WHAT HAPPENS IF WE LOAD IN useState:
-     - Server: Renders with [] (no localStorage)
-     - Client: Immediately loads from localStorage → [{chore1}, {chore2}]
+     - Server: Renders with [] (no database)
+     - Client: Immediately loads from Supabase → [{chore1}, {chore2}]
      - HTML doesn't match → Hydration error! ❌
   */
-  
+
   // State to store all assignees (people who can do chores)
   // Starts empty - will be loaded from localStorage in useEffect
   const [assignees, setAssignees] = useState<Assignee[]>([]);
@@ -147,7 +149,7 @@ export default function Home() {
   // State to store all chores (tasks that need to be done)
   // Starts empty - will be loaded from localStorage in useEffect
   const [chores, setChores] = useState<Chore[]>([]);
-  
+
   // State to control whether the "add chore" input form is visible
   // When true, the input form is shown; when false, it's hidden
   // This allows us to show/hide the form without losing the input value
@@ -160,8 +162,10 @@ export default function Home() {
   // State to store the selected category ID for the new chore being created
   // When undefined, the chore will be uncategorized
   // When set to a category ID, the chore will be assigned to that category
-  const [newChoreCategoryId, setNewChoreCategoryId] = useState<string | undefined>(undefined);
-  
+  const [newChoreCategoryId, setNewChoreCategoryId] = useState<
+    string | undefined
+  >(undefined);
+
   // State to control whether the "add category" input form is visible
   // When true, the input form is shown; when false, it's hidden
   const [isAddingCategory, setIsAddingCategory] = useState(false);
@@ -181,17 +185,22 @@ export default function Home() {
   // State to track which chore's assignee selector is currently open
   // When set to a chore ID, that chore's assignee selector is visible
   // When null, no selector is open
-  const [openAssigneeSelector, setOpenAssigneeSelector] = useState<string | null>(null);
+  const [openAssigneeSelector, setOpenAssigneeSelector] = useState<
+    string | null
+  >(null);
 
   // State to track which category's assignee selector is currently open
   // When set to a category ID, that category's assignee selector is visible
   // When null, no selector is open
-  const [openCategoryAssigneeSelector, setOpenCategoryAssigneeSelector] = useState<string | null>(null);
+  const [openCategoryAssigneeSelector, setOpenCategoryAssigneeSelector] =
+    useState<string | null>(null);
 
   // State to track which category is currently adding a chore inline
   // When set to a category ID, that category shows an inline chore creation form
   // When null, no inline form is shown
-  const [addingChoreInCategory, setAddingChoreInCategory] = useState<string | null>(null);
+  const [addingChoreInCategory, setAddingChoreInCategory] = useState<
+    string | null
+  >(null);
 
   // State to store the title for a new chore being added within a category
   const [newChoreTitleInCategory, setNewChoreTitleInCategory] = useState("");
@@ -199,38 +208,43 @@ export default function Home() {
   // State to track if user is adding a new assignee from within a chore's assignee selector
   // When set to a chore ID, that chore's selector shows "add new assignee" form
   // When null, no inline assignee creation is shown
-  const [addingAssigneeInChore, setAddingAssigneeInChore] = useState<string | null>(null);
+  const [addingAssigneeInChore, setAddingAssigneeInChore] = useState<
+    string | null
+  >(null);
 
   // State to store the name for a new assignee being created from a chore selector
   const [newAssigneeNameInChore, setNewAssigneeNameInChore] = useState("");
 
   // State to store the position of the dropdown (for fixed positioning)
-  const [dropdownPosition, setDropdownPosition] = useState<{ top: number; left: number } | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<{
+    top: number;
+    left: number;
+  } | null>(null);
 
   // State to track if component is mounted (needed for portal rendering)
   const [isMounted, setIsMounted] = useState(false);
-  
+
   // State to track if household code was just copied (for showing feedback)
   const [codeCopied, setCodeCopied] = useState(false);
-  
+
   // Loading and error states for Supabase operations
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   /* ============================================
-     LOCALSTORAGE PERSISTENCE - LOAD & SAVE
+     AUTH SESSION PERSISTENCE (localStorage)
      ============================================
      
-     TWO-PHASE APPROACH:
-     Phase 1 (LOAD): Run once on mount to load saved data
-     Phase 2 (SAVE): Run whenever data changes to save updates
+     LIGHTWEIGHT SESSION MANAGEMENT:
+     - localStorage is ONLY used for auth session (userId, userName, householdId)
+     - Enables automatic login when user returns to the app
+     - All data (chores, categories, assignees) is stored in Supabase
      
-     WHY THIS WORKS:
-     1. Component mounts with empty arrays (server and client match)
-     2. useEffect runs AFTER hydration completes
-     3. Loads data from localStorage
-     4. Updates state → Screen updates with saved data
-     5. Subsequent changes auto-save to localStorage
+     WHY localStorage FOR AUTH:
+     - Simple session persistence across page reloads
+     - No need for JWT tokens or complex cookie management
+     - Easy to clear on sign out
+     - Browser-native, no dependencies
      
      NEXT.JS CLIENT-SIDE CONSTRAINT:
      ⚠️ localStorage only exists in the browser (not on server)
@@ -238,19 +252,19 @@ export default function Home() {
      - Safe to use localStorage inside useEffect
      - No hydration mismatch! ✅
   */
-  
+
   // Set mounted state for portal rendering
   useEffect(() => {
     setIsMounted(true);
   }, []);
-  
+
   // Check for existing auth on mount
   useEffect(() => {
     // Load auth data from localStorage if it exists
     const savedUserId = localStorage.getItem("userId");
     const savedUserName = localStorage.getItem("userName");
     const savedHouseholdId = localStorage.getItem("householdId");
-    
+
     if (savedUserId && savedUserName && savedHouseholdId) {
       // User is already logged in
       setUserId(savedUserId);
@@ -259,7 +273,7 @@ export default function Home() {
       setIsAuthenticated(true);
     }
   }, []);
-  
+
   // Login handler - called when user successfully joins a household
   const handleLogin = (name: string, household: string, uid: string) => {
     setUserName(name);
@@ -267,16 +281,20 @@ export default function Home() {
     setUserId(uid);
     setIsAuthenticated(true);
   };
-  
+
   // Sign out handler - clears auth and returns to login screen
   const handleSignOut = () => {
     // Confirm before signing out
-    if (confirm("Are you sure you want to sign out? Your chores will remain in the household.")) {
+    if (
+      confirm(
+        "Are you sure you want to sign out? Your chores will remain in the household."
+      )
+    ) {
       // Clear auth data from localStorage
       localStorage.removeItem("userId");
       localStorage.removeItem("userName");
       localStorage.removeItem("householdId");
-      
+
       // Reset auth state
       setUserId(null);
       setUserName(null);
@@ -289,17 +307,17 @@ export default function Home() {
   const handleDeleteAssignee = async (assigneeId: string) => {
     const assignee = assignees.find((a) => a.id === assigneeId);
     if (!assignee) return;
-    
+
     // Check if assignee is used in any chores
     const choresUsingAssignee = chores.filter((chore) =>
       chore.assigneeIds.includes(assigneeId)
     );
-    
+
     // Check if assignee is used in any categories
     const categoriesUsingAssignee = categories.filter((cat) =>
       cat.assigneeIds.includes(assigneeId)
     );
-    
+
     // Build confirmation message
     let confirmMessage = `Delete "${assignee.name}"?`;
     if (choresUsingAssignee.length > 0 || categoriesUsingAssignee.length > 0) {
@@ -311,98 +329,110 @@ export default function Home() {
         confirmMessage += `\n• ${categoriesUsingAssignee.length} category/categories`;
       }
     }
-    
+
     if (!confirm(confirmMessage)) return;
-    
+
     // Optimistic UI update
-    setChores(chores.map((chore) => ({
-      ...chore,
-      assigneeIds: chore.assigneeIds.filter((id) => id !== assigneeId),
-    })));
-    setCategories(categories.map((cat) => ({
-      ...cat,
-      assigneeIds: cat.assigneeIds.filter((id) => id !== assigneeId),
-    })));
+    setChores(
+      chores.map((chore) => ({
+        ...chore,
+        assigneeIds: chore.assigneeIds.filter((id) => id !== assigneeId),
+      }))
+    );
+    setCategories(
+      categories.map((cat) => ({
+        ...cat,
+        assigneeIds: cat.assigneeIds.filter((id) => id !== assigneeId),
+      }))
+    );
     setAssignees(assignees.filter((a) => a.id !== assigneeId));
-    
+
     try {
       const { supabase } = await import("@/lib/supabaseClient");
-      
+
       // Remove assignee from all chores (update arrays, use snake_case for DB)
       for (const chore of choresUsingAssignee) {
         await supabase
           .from("chores")
-          .update({ assignee_ids: chore.assigneeIds.filter(id => id !== assigneeId) })
+          .update({
+            assignee_ids: chore.assigneeIds.filter((id) => id !== assigneeId),
+          })
           .eq("id", chore.id);
       }
-      
+
       // Remove assignee from all categories (update arrays, use snake_case for DB)
       for (const cat of categoriesUsingAssignee) {
         await supabase
           .from("categories")
-          .update({ assignee_ids: cat.assigneeIds.filter(id => id !== assigneeId) })
+          .update({
+            assignee_ids: cat.assigneeIds.filter((id) => id !== assigneeId),
+          })
           .eq("id", cat.id);
       }
-      
+
       // Delete the assignee
       const { error: deleteError } = await supabase
         .from("assignees")
         .delete()
         .eq("id", assigneeId);
-      
+
       if (deleteError) throw deleteError;
-      
     } catch (err: unknown) {
       console.error("Failed to delete assignee:", err);
-      setError(getErrorMessage(err) || "Failed to delete assignee. Please refresh the page.");
+      setError(
+        getErrorMessage(err) ||
+          "Failed to delete assignee. Please refresh the page."
+      );
     }
   };
-  
+
   /* ============================================
-     SUPABASE DATA LOADING
+     SUPABASE DATA LOADING - PRIMARY DATA STORAGE
      ============================================
      
-     MIGRATION FROM LOCALSTORAGE TO SUPABASE:
-     Instead of loading from localStorage, we now fetch from Supabase database.
+     ALL APP DATA IS STORED IN SUPABASE:
+     - Chores, categories, and assignees are stored in Supabase database
+     - localStorage is ONLY used for auth session (userId, userName, householdId)
+     - This enables true multi-user collaboration across devices
      
-     WHY SUPABASE INSTEAD OF LOCALSTORAGE:
+     WHY SUPABASE FOR DATA STORAGE:
      - Data is shared across all devices in the household
      - Multiple users can see and edit the same chores in real-time
      - Data persists even if you clear browser data
-     - Proper multi-user collaboration
+     - Proper multi-user collaboration with data isolation by household
      
      HOW IT WORKS:
-     1. User logs in → householdId is set
-     2. This effect triggers → fetches all data for that household
+     1. User logs in → householdId is set (stored in localStorage for session)
+     2. This effect triggers → fetches all data for that household from Supabase
      3. Data is filtered by household_id (so you only see your household's data)
      4. Loading state shows while fetching
      5. Error state shows if something goes wrong
   */
-  
+
   // Load all data from Supabase when user logs in
   useEffect(() => {
     if (!isAuthenticated || !householdId || !userName) return;
-    
+
     const loadDataFromSupabase = async () => {
       setIsLoading(true);
       setError(null);
-      
+
       try {
         const { supabase } = await import("@/lib/supabaseClient");
-        
+
         // Fetch assignees for this household
         const { data: assigneesData, error: assigneesError } = await supabase
           .from("assignees")
           .select("*")
           .eq("household_id", householdId);
-        
+
         if (assigneesError) throw assigneesError;
-        
+
         // Auto-create assignee for this user if they don't exist
         const userExists = assigneesData?.some(
           (assignee) => assignee.name.toLowerCase() === userName.toLowerCase()
         );
-        
+
         if (!userExists && userName) {
           // Create assignee for the logged-in user
           const { data: newAssignee, error: createError } = await supabase
@@ -413,7 +443,7 @@ export default function Home() {
             })
             .select()
             .single();
-          
+
           if (createError) {
             console.error("Failed to auto-create assignee:", createError);
           } else if (newAssignee) {
@@ -423,48 +453,54 @@ export default function Home() {
         } else {
           setAssignees(assigneesData || []);
         }
-        
+
         // Fetch categories for this household
         const { data: categoriesData, error: categoriesError } = await supabase
           .from("categories")
           .select("*")
           .eq("household_id", householdId);
-        
+
         if (categoriesError) throw categoriesError;
         // Transform snake_case from DB to camelCase for app, add isOpen for UI
-        setCategories((categoriesData || []).map((cat: CategoryDB) => ({ 
-          id: cat.id,
-          name: cat.name,
-          household_id: cat.household_id,
-          assigneeIds: cat.assignee_ids || [],
-          isOpen: true 
-        })));
-        
+        setCategories(
+          (categoriesData || []).map((cat: CategoryDB) => ({
+            id: cat.id,
+            name: cat.name,
+            household_id: cat.household_id,
+            assigneeIds: cat.assignee_ids || [],
+            isOpen: true,
+          }))
+        );
+
         // Fetch chores for this household
         const { data: choresData, error: choresError } = await supabase
           .from("chores")
           .select("*")
           .eq("household_id", householdId);
-        
+
         if (choresError) throw choresError;
         // Transform snake_case from DB to camelCase for app
-        setChores((choresData || []).map((chore: ChoreDB) => ({
-          id: chore.id,
-          title: chore.title,
-          completed: chore.completed,
-          household_id: chore.household_id,
-          assigneeIds: chore.assignee_ids || [],
-          categoryId: chore.category_id || null
-        })));
-        
+        setChores(
+          (choresData || []).map((chore: ChoreDB) => ({
+            id: chore.id,
+            title: chore.title,
+            completed: chore.completed,
+            household_id: chore.household_id,
+            assigneeIds: chore.assignee_ids || [],
+            categoryId: chore.category_id || null,
+          }))
+        );
       } catch (err: unknown) {
         console.error("Failed to load data from Supabase:", err);
-        setError(getErrorMessage(err) || "Failed to load your chores. Please refresh the page.");
+        setError(
+          getErrorMessage(err) ||
+            "Failed to load your chores. Please refresh the page."
+        );
       } finally {
         setIsLoading(false);
       }
     };
-    
+
     loadDataFromSupabase();
   }, [isAuthenticated, householdId, userName]); // Run when user logs in or household changes
 
@@ -480,13 +516,16 @@ export default function Home() {
     };
 
     // Add event listener when any selector is open
-    if (openAssigneeSelector !== null || openCategoryAssigneeSelector !== null) {
-      document.addEventListener('click', handleClickOutside);
+    if (
+      openAssigneeSelector !== null ||
+      openCategoryAssigneeSelector !== null
+    ) {
+      document.addEventListener("click", handleClickOutside);
     }
 
     // Cleanup: remove event listener when component unmounts or selectors close
     return () => {
-      document.removeEventListener('click', handleClickOutside);
+      document.removeEventListener("click", handleClickOutside);
     };
   }, [openAssigneeSelector, openCategoryAssigneeSelector]);
 
@@ -513,13 +552,13 @@ export default function Home() {
     if (newChoreTitle.trim() === "") {
       return; // Exit early if input is empty
     }
-    
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const { supabase } = await import("@/lib/supabaseClient");
-      
+
       // Insert new chore into Supabase (use snake_case for DB)
       const { data, error: insertError } = await supabase
         .from("chores")
@@ -532,9 +571,9 @@ export default function Home() {
         })
         .select()
         .single();
-      
+
       if (insertError) throw insertError;
-      
+
       // Transform DB response to camelCase for app state (only include needed fields)
       const choreForState: Chore = {
         id: data.id,
@@ -542,20 +581,21 @@ export default function Home() {
         completed: data.completed,
         household_id: data.household_id,
         assigneeIds: data.assignee_ids || [],
-        categoryId: data.category_id || null
+        categoryId: data.category_id || null,
       };
-      
+
       // Add to local state
       setChores([...chores, choreForState]);
-      
+
       // Clear the input field and category selection
-    setNewChoreTitle("");
+      setNewChoreTitle("");
       setNewChoreCategoryId(undefined);
-    setIsAddingChore(false);
-      
+      setIsAddingChore(false);
     } catch (err: unknown) {
       console.error("Failed to add chore:", err);
-      setError(getErrorMessage(err) || "Failed to add chore. Please try again.");
+      setError(
+        getErrorMessage(err) || "Failed to add chore. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -584,7 +624,7 @@ export default function Home() {
 
     try {
       const { supabase } = await import("@/lib/supabaseClient");
-      
+
       // Insert new chore into Supabase (use snake_case for DB)
       const { data, error: insertError } = await supabase
         .from("chores")
@@ -597,9 +637,9 @@ export default function Home() {
         })
         .select()
         .single();
-      
+
       if (insertError) throw insertError;
-      
+
       // Transform DB response to camelCase for app state (only include needed fields)
       const choreForState: Chore = {
         id: data.id,
@@ -607,19 +647,20 @@ export default function Home() {
         completed: data.completed,
         household_id: data.household_id,
         assigneeIds: data.assignee_ids || [],
-        categoryId: data.category_id || null
+        categoryId: data.category_id || null,
       };
-      
+
       // Add to local state
       setChores([...chores, choreForState]);
-      
+
       // Clear input and hide form
       setNewChoreTitleInCategory("");
       setAddingChoreInCategory(null);
-      
     } catch (err: unknown) {
       console.error("Failed to add chore:", err);
-      setError(getErrorMessage(err) || "Failed to add chore. Please try again.");
+      setError(
+        getErrorMessage(err) || "Failed to add chore. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -651,7 +692,9 @@ export default function Home() {
 
     // Check for duplicate names
     const nameExists = assignees.some(
-      (assignee) => assignee.name.toLowerCase() === newAssigneeNameInChore.trim().toLowerCase()
+      (assignee) =>
+        assignee.name.toLowerCase() ===
+        newAssigneeNameInChore.trim().toLowerCase()
     );
     if (nameExists) {
       setError("An assignee with this name already exists.");
@@ -663,7 +706,7 @@ export default function Home() {
 
     try {
       const { supabase } = await import("@/lib/supabaseClient");
-      
+
       // Create new assignee in Supabase
       const { data: newAssignee, error: insertError } = await supabase
         .from("assignees")
@@ -673,38 +716,41 @@ export default function Home() {
         })
         .select()
         .single();
-      
+
       if (insertError) throw insertError;
-      
+
       // Add to local assignees array
       setAssignees([...assignees, newAssignee]);
-      
+
       // Update chore to include the new assignee
-      const chore = chores.find(c => c.id === choreId);
+      const chore = chores.find((c) => c.id === choreId);
       if (chore) {
         const newAssigneeIds = [...chore.assigneeIds, newAssignee.id];
-        
+
         // Update in Supabase (use snake_case for DB)
         const { error: updateError } = await supabase
           .from("chores")
           .update({ assignee_ids: newAssigneeIds })
           .eq("id", choreId);
-        
+
         if (updateError) throw updateError;
-        
+
         // Update local state
-        setChores(chores.map((c) =>
-          c.id === choreId ? { ...c, assigneeIds: newAssigneeIds } : c
-        ));
+        setChores(
+          chores.map((c) =>
+            c.id === choreId ? { ...c, assigneeIds: newAssigneeIds } : c
+          )
+        );
       }
-      
+
       // Clear input and hide form
       setNewAssigneeNameInChore("");
       setAddingAssigneeInChore(null);
-      
     } catch (err: unknown) {
       console.error("Failed to add assignee:", err);
-      setError(getErrorMessage(err) || "Failed to add assignee. Please try again.");
+      setError(
+        getErrorMessage(err) || "Failed to add assignee. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -725,30 +771,37 @@ export default function Home() {
   */
   const handleToggleChore = async (choreId: string) => {
     // Find the chore to toggle
-    const chore = chores.find(c => c.id === choreId);
+    const chore = chores.find((c) => c.id === choreId);
     if (!chore) return;
-    
+
     // Optimistic UI update - update immediately for responsiveness
     setChores(
-      chores.map((c) => c.id === choreId ? { ...c, completed: !c.completed } : c)
+      chores.map((c) =>
+        c.id === choreId ? { ...c, completed: !c.completed } : c
+      )
     );
-    
+
     try {
       const { supabase } = await import("@/lib/supabaseClient");
-      
+
       // Update completed status in Supabase
       const { error: updateError } = await supabase
         .from("chores")
         .update({ completed: !chore.completed })
         .eq("id", choreId);
-      
+
       if (updateError) throw updateError;
-      
     } catch (err: unknown) {
       console.error("Failed to toggle chore:", err);
       // Revert optimistic update on error
-      setChores(chores.map((c) => c.id === choreId ? { ...c, completed: chore.completed } : c));
-      setError(getErrorMessage(err) || "Failed to update chore. Please try again.");
+      setChores(
+        chores.map((c) =>
+          c.id === choreId ? { ...c, completed: chore.completed } : c
+        )
+      );
+      setError(
+        getErrorMessage(err) || "Failed to update chore. Please try again."
+      );
     }
   };
 
@@ -784,7 +837,8 @@ export default function Home() {
 
     // Check for duplicate names (optional - prevents confusion)
     const nameExists = assignees.some(
-      (assignee) => assignee.name.toLowerCase() === newAssigneeName.trim().toLowerCase()
+      (assignee) =>
+        assignee.name.toLowerCase() === newAssigneeName.trim().toLowerCase()
     );
     if (nameExists) {
       setError("An assignee with this name already exists.");
@@ -796,7 +850,7 @@ export default function Home() {
 
     try {
       const { supabase } = await import("@/lib/supabaseClient");
-      
+
       // Insert new assignee into Supabase
       const { data, error: insertError } = await supabase
         .from("assignees")
@@ -806,19 +860,20 @@ export default function Home() {
         })
         .select()
         .single();
-      
+
       if (insertError) throw insertError;
-      
+
       // Add to local state
       setAssignees([...assignees, data]);
 
-    // Clear the input field
-    setNewAssigneeName("");
-    setIsAddingAssignee(false);
-      
+      // Clear the input field
+      setNewAssigneeName("");
+      setIsAddingAssignee(false);
     } catch (err: unknown) {
       console.error("Failed to add assignee:", err);
-      setError(getErrorMessage(err) || "Failed to add assignee. Please try again.");
+      setError(
+        getErrorMessage(err) || "Failed to add assignee. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -852,7 +907,7 @@ export default function Home() {
 
     try {
       const { supabase } = await import("@/lib/supabaseClient");
-      
+
       // Insert new category into Supabase (use snake_case for DB)
       const { data, error: insertError } = await supabase
         .from("categories")
@@ -863,28 +918,29 @@ export default function Home() {
         })
         .select()
         .single();
-      
+
       if (insertError) throw insertError;
-      
+
       // Transform DB response to camelCase for app state (only include needed fields)
       const categoryForState: Category = {
         id: data.id,
         name: data.name,
         household_id: data.household_id,
         assigneeIds: data.assignee_ids || [],
-        isOpen: true
+        isOpen: true,
       };
-      
+
       // Add to local state with isOpen UI property
       setCategories([...categories, categoryForState]);
 
-    // Clear the input field
-    setNewCategoryName("");
-    setIsAddingCategory(false);
-      
+      // Clear the input field
+      setNewCategoryName("");
+      setIsAddingCategory(false);
     } catch (err: unknown) {
       console.error("Failed to add category:", err);
-      setError(getErrorMessage(err) || "Failed to add category. Please try again.");
+      setError(
+        getErrorMessage(err) || "Failed to add category. Please try again."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -907,38 +963,48 @@ export default function Home() {
      - Individual chore overrides when needed (e.g., "Deep clean oven" → assigned to Bob)
      - Easy bulk management without losing granular control
   */
-  const handleToggleCategoryAssignee = async (categoryId: string, assigneeId: string) => {
-    const category = categories.find(c => c.id === categoryId);
+  const handleToggleCategoryAssignee = async (
+    categoryId: string,
+    assigneeId: string
+  ) => {
+    const category = categories.find((c) => c.id === categoryId);
     if (!category) return;
-    
+
     const isAssigned = category.assigneeIds.includes(assigneeId);
     const newAssigneeIds = isAssigned
       ? category.assigneeIds.filter((id) => id !== assigneeId)
       : [...category.assigneeIds, assigneeId];
-    
+
     // Optimistic UI update
-    setCategories(categories.map((cat) =>
-      cat.id === categoryId ? { ...cat, assigneeIds: newAssigneeIds } : cat
-    ));
-    
+    setCategories(
+      categories.map((cat) =>
+        cat.id === categoryId ? { ...cat, assigneeIds: newAssigneeIds } : cat
+      )
+    );
+
     try {
       const { supabase } = await import("@/lib/supabaseClient");
-      
+
       // Update category assignees in Supabase (use snake_case for DB)
       const { error: updateError } = await supabase
         .from("categories")
         .update({ assignee_ids: newAssigneeIds })
         .eq("id", categoryId);
-      
+
       if (updateError) throw updateError;
-      
     } catch (err: unknown) {
       console.error("Failed to update category assignees:", err);
       // Revert optimistic update
-      setCategories(categories.map((cat) =>
-        cat.id === categoryId ? { ...cat, assigneeIds: category.assigneeIds } : cat
-      ));
-      setError(getErrorMessage(err) || "Failed to update assignees. Please try again.");
+      setCategories(
+        categories.map((cat) =>
+          cat.id === categoryId
+            ? { ...cat, assigneeIds: category.assigneeIds }
+            : cat
+        )
+      );
+      setError(
+        getErrorMessage(err) || "Failed to update assignees. Please try again."
+      );
     }
   };
 
@@ -963,7 +1029,9 @@ export default function Home() {
      The isInherited flag allows us to style inherited assignees differently
      (e.g., lighter color, italic text, or "inherited" label)
   */
-  const getEffectiveAssignees = (chore: Chore): { assigneeIds: string[]; isInherited: boolean } => {
+  const getEffectiveAssignees = (
+    chore: Chore
+  ): { assigneeIds: string[]; isInherited: boolean } => {
     // If chore has direct assignees, use them (override mode)
     if (chore.assigneeIds.length > 0) {
       return {
@@ -971,7 +1039,7 @@ export default function Home() {
         isInherited: false, // These are directly assigned, not inherited
       };
     }
-    
+
     // If chore belongs to a category, inherit category's assignees
     if (chore.categoryId) {
       const category = categories.find((cat) => cat.id === chore.categoryId);
@@ -982,7 +1050,7 @@ export default function Home() {
         };
       }
     }
-    
+
     // No assignees (neither direct nor inherited)
     return {
       assigneeIds: [],
@@ -1018,37 +1086,42 @@ export default function Home() {
      - The array is updated using filter (remove) or spread (add)
   */
   const handleToggleAssignee = async (choreId: string, assigneeId: string) => {
-    const chore = chores.find(c => c.id === choreId);
+    const chore = chores.find((c) => c.id === choreId);
     if (!chore) return;
-    
-          const isAssigned = chore.assigneeIds.includes(assigneeId);
+
+    const isAssigned = chore.assigneeIds.includes(assigneeId);
     const newAssigneeIds = isAssigned
       ? chore.assigneeIds.filter((id) => id !== assigneeId)
       : [...chore.assigneeIds, assigneeId];
-    
+
     // Optimistic UI update
-    setChores(chores.map((c) =>
-      c.id === choreId ? { ...c, assigneeIds: newAssigneeIds } : c
-    ));
-    
+    setChores(
+      chores.map((c) =>
+        c.id === choreId ? { ...c, assigneeIds: newAssigneeIds } : c
+      )
+    );
+
     try {
       const { supabase } = await import("@/lib/supabaseClient");
-      
+
       // Update chore assignees in Supabase (use snake_case for DB)
       const { error: updateError } = await supabase
         .from("chores")
         .update({ assignee_ids: newAssigneeIds })
         .eq("id", choreId);
-      
+
       if (updateError) throw updateError;
-      
     } catch (err: unknown) {
       console.error("Failed to update chore assignees:", err);
       // Revert optimistic update
-      setChores(chores.map((c) =>
-        c.id === choreId ? { ...c, assigneeIds: chore.assigneeIds } : c
-      ));
-      setError(getErrorMessage(err) || "Failed to update assignees. Please try again.");
+      setChores(
+        chores.map((c) =>
+          c.id === choreId ? { ...c, assigneeIds: chore.assigneeIds } : c
+        )
+      );
+      setError(
+        getErrorMessage(err) || "Failed to update assignees. Please try again."
+      );
     }
   };
 
@@ -1069,25 +1142,27 @@ export default function Home() {
   */
   const handleDeleteChore = async (choreId: string) => {
     if (!confirm("Delete this chore?")) return;
-    
+
     // Optimistic UI update
     setChores(chores.filter((chore) => chore.id !== choreId));
-    
+
     try {
       const { supabase } = await import("@/lib/supabaseClient");
-      
+
       // Delete from Supabase
       const { error: deleteError } = await supabase
         .from("chores")
         .delete()
         .eq("id", choreId);
-      
+
       if (deleteError) throw deleteError;
-      
     } catch (err: unknown) {
       console.error("Failed to delete chore:", err);
       // Could revert optimistic update here, but for simplicity we'll just show error
-      setError(getErrorMessage(err) || "Failed to delete chore. Please refresh the page.");
+      setError(
+        getErrorMessage(err) ||
+          "Failed to delete chore. Please refresh the page."
+      );
     }
   };
 
@@ -1108,37 +1183,48 @@ export default function Home() {
      4. React re-renders with category removed and chores moved to uncategorized
   */
   const handleDeleteCategory = async (categoryId: string) => {
-    const category = categories.find(c => c.id === categoryId);
+    const category = categories.find((c) => c.id === categoryId);
     if (!category) return;
-    
-    if (!confirm(`Delete category "${category.name}"? Chores will be moved to Uncategorized.`)) return;
-    
+
+    if (
+      !confirm(
+        `Delete category "${category.name}"? Chores will be moved to Uncategorized.`
+      )
+    )
+      return;
+
     // Optimistic UI update
     setCategories(categories.filter((c) => c.id !== categoryId));
-    setChores(chores.map((chore) => chore.categoryId === categoryId ? { ...chore, categoryId: null } : chore));
-    
+    setChores(
+      chores.map((chore) =>
+        chore.categoryId === categoryId ? { ...chore, categoryId: null } : chore
+      )
+    );
+
     try {
       const { supabase } = await import("@/lib/supabaseClient");
-      
+
       // Move all chores in this category to uncategorized (use snake_case for DB)
       const { error: updateError } = await supabase
         .from("chores")
         .update({ category_id: null })
         .eq("category_id", categoryId);
-      
+
       if (updateError) throw updateError;
-      
+
       // Delete the category
       const { error: deleteError } = await supabase
         .from("categories")
         .delete()
         .eq("id", categoryId);
-      
+
       if (deleteError) throw deleteError;
-      
     } catch (err: unknown) {
       console.error("Failed to delete category:", err);
-      setError(getErrorMessage(err) || "Failed to delete category. Please refresh the page.");
+      setError(
+        getErrorMessage(err) ||
+          "Failed to delete category. Please refresh the page."
+      );
     }
   };
 
@@ -1157,26 +1243,32 @@ export default function Home() {
         - Pass undefined to remove categorization (move back to uncategorized)
      4. React re-renders and the chore appears in the new category
   */
-  const handleMoveChoreToCategory = async (choreId: string, categoryId: string | null) => {
+  const handleMoveChoreToCategory = async (
+    choreId: string,
+    categoryId: string | null
+  ) => {
     // Optimistic UI update
-    setChores(chores.map((chore) =>
-      chore.id === choreId ? { ...chore, categoryId } : chore
-    ));
-    
+    setChores(
+      chores.map((chore) =>
+        chore.id === choreId ? { ...chore, categoryId } : chore
+      )
+    );
+
     try {
       const { supabase } = await import("@/lib/supabaseClient");
-      
+
       // Update chore category in Supabase (use snake_case for DB)
       const { error: updateError } = await supabase
         .from("chores")
         .update({ category_id: categoryId })
         .eq("id", choreId);
-      
+
       if (updateError) throw updateError;
-      
     } catch (err: unknown) {
       console.error("Failed to move chore:", err);
-      setError(getErrorMessage(err) || "Failed to move chore. Please refresh the page.");
+      setError(
+        getErrorMessage(err) || "Failed to move chore. Please refresh the page."
+      );
     }
   };
 
@@ -1229,15 +1321,19 @@ export default function Home() {
   if (!isAuthenticated) {
     return <LoginScreen onLogin={handleLogin} />;
   }
-  
+
   // Show loading screen while fetching data
   if (isLoading) {
-  return (
+    return (
       <div className="flex min-h-screen items-center justify-center font-sans">
         <div className="text-center">
           <div className="text-4xl mb-4">⏳</div>
-          <p className="text-xl font-medium text-gray-700 dark:text-gray-300">Loading...</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Fetching your chores</p>
+          <p className="text-xl font-medium text-gray-700 dark:text-gray-300">
+            Loading...
+          </p>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+            Fetching your chores
+          </p>
         </div>
       </div>
     );
@@ -1254,8 +1350,12 @@ export default function Home() {
               <div className="flex items-start gap-3">
                 <span className="text-2xl">⚠️</span>
                 <div>
-                  <p className="font-semibold text-red-800 dark:text-red-200">Something went wrong</p>
-                  <p className="text-sm text-red-700 dark:text-red-300 mt-1">{error}</p>
+                  <p className="font-semibold text-red-800 dark:text-red-200">
+                    Something went wrong
+                  </p>
+                  <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                    {error}
+                  </p>
                 </div>
               </div>
               <button
@@ -1267,16 +1367,15 @@ export default function Home() {
             </div>
           </div>
         )}
-        
+
         {/* Header with title and household info */}
         <div className="w-full mb-8">
-          
           {/* Title and Add Button Row */}
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-4xl font-semibold text-black dark:text-zinc-50">
-          Chore Tracker
-        </h1>
-            
+              Chore Tracker
+            </h1>
+
             {/* Add Chore button */}
             {chores.length > 0 && !isAddingChore && (
               <button
@@ -1302,13 +1401,15 @@ export default function Home() {
                   <span className="text-lg font-bold text-purple-900 dark:text-purple-100">
                     {userName}
                   </span>
-                  <span className="text-purple-400 dark:text-purple-600">•</span>
+                  <span className="text-purple-400 dark:text-purple-600">
+                    •
+                  </span>
                   <span className="text-lg font-mono font-bold text-purple-700 dark:text-purple-300">
                     {householdId}
                   </span>
                 </div>
               </div>
-              
+
               {/* Action Buttons */}
               <div className="flex items-center gap-2">
                 {/* Copy Code Button */}
@@ -1334,7 +1435,7 @@ export default function Home() {
                     </>
                   )}
                 </button>
-                
+
                 {/* Sign Out Button */}
                 <button
                   onClick={handleSignOut}
@@ -1347,7 +1448,7 @@ export default function Home() {
                 </button>
               </div>
             </div>
-            
+
             {/* Helper text */}
             <p className="text-xs text-purple-600/60 dark:text-purple-400/60 mt-2">
               Share this code with roommates so they can join your household
@@ -1380,13 +1481,14 @@ export default function Home() {
                 {/* Main empty state message */}
                 <h2 className="text-2xl font-semibold text-black dark:text-zinc-50 mb-4 text-center">
                   No chores yet
-          </h2>
-          
+                </h2>
+
                 {/* Subtext encouraging collaboration */}
                 <p className="text-zinc-600 dark:text-zinc-400 mb-8 text-center max-w-md">
-                  Start tracking your household chores and work together to keep things organized!
+                  Start tracking your household chores and work together to keep
+                  things organized!
                 </p>
-                
+
                 {/* Primary call-to-action button */}
                 {/* Clicking this reveals the inline input form */}
                 <button
@@ -1404,8 +1506,8 @@ export default function Home() {
             ) : (
               /* Inline input form - appears when user clicks "Add your first chore" */
               <div className="w-full max-w-md">
-          <input
-            type="text"
+                <input
+                  type="text"
                   value={newChoreTitle}
                   onChange={(e) => {
                     // State change: Update the input value as user types
@@ -1413,9 +1515,9 @@ export default function Home() {
                     // and the input shows the new text
                     setNewChoreTitle(e.target.value);
                   }}
-            onKeyDown={(e) => {
+                  onKeyDown={(e) => {
                     // Allow submitting by pressing Enter key
-              if (e.key === "Enter") {
+                    if (e.key === "Enter") {
                       handleAddChore();
                     }
                     // Allow canceling by pressing Escape key
@@ -1423,32 +1525,33 @@ export default function Home() {
                       setIsAddingChore(false);
                       setNewChoreTitle("");
                       setNewChoreCategoryId(undefined);
-              }
-            }}
+                    }
+                  }}
                   placeholder="Enter chore title..."
                   autoFocus // Automatically focus the input when it appears
                   className="w-full px-4 py-3 mb-3 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300 placeholder:text-purple-400/60"
-          />
-          
-          {/* Category selector - only show if categories exist */}
-          {categories.length > 0 && (
-            <select
-              value={newChoreCategoryId ?? ""}
-              onChange={(e) => {
-                // Update selected category (empty string = undefined = uncategorized)
-                const value = e.target.value === "" ? undefined : e.target.value;
-                setNewChoreCategoryId(value);
-              }}
-              className="w-full px-4 py-3 mb-3 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300"
-            >
-              <option value="">Uncategorized</option>
-              {categories.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.name}
-                </option>
-              ))}
-            </select>
-          )}
+                />
+
+                {/* Category selector - only show if categories exist */}
+                {categories.length > 0 && (
+                  <select
+                    value={newChoreCategoryId ?? ""}
+                    onChange={(e) => {
+                      // Update selected category (empty string = undefined = uncategorized)
+                      const value =
+                        e.target.value === "" ? undefined : e.target.value;
+                      setNewChoreCategoryId(value);
+                    }}
+                    className="w-full px-4 py-3 mb-3 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300"
+                  >
+                    <option value="">Uncategorized</option>
+                    {categories.map((category) => (
+                      <option key={category.id} value={category.id}>
+                        {category.name}
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <div className="flex gap-3">
                   {/* Submit button - creates the chore */}
                   <button
@@ -1519,14 +1622,15 @@ export default function Home() {
                   placeholder="Enter chore title..."
                   autoFocus
                   className="w-full px-4 py-3 mb-3 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300 placeholder:text-purple-400/60"
-          />
-                
+                />
+
                 {/* Category selector - only show if categories exist */}
                 {categories.length > 0 && (
                   <select
                     value={newChoreCategoryId ?? ""}
                     onChange={(e) => {
-                      const value = e.target.value === "" ? undefined : e.target.value;
+                      const value =
+                        e.target.value === "" ? undefined : e.target.value;
                       setNewChoreCategoryId(value);
                     }}
                     className="w-full px-4 py-3 mb-3 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300"
@@ -1608,10 +1712,10 @@ export default function Home() {
                   </button>
                 ) : (
                   <div className="flex gap-2">
-              <input
+                    <input
                       type="text"
                       value={newAssigneeName}
-                onChange={(e) => {
+                      onChange={(e) => {
                         // State change: Update the input value as user types
                         setNewAssigneeName(e.target.value);
                       }}
@@ -1649,7 +1753,7 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              
+
               {/* List of assignees */}
               {assignees.length === 0 ? (
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -1691,10 +1795,10 @@ export default function Home() {
                 </button>
               ) : (
                 <div className="flex gap-2">
-              <input
+                  <input
                     type="text"
                     value={newCategoryName}
-                onChange={(e) => {
+                    onChange={(e) => {
                       // State change: Update the input value as user types
                       setNewCategoryName(e.target.value);
                     }}
@@ -1707,8 +1811,8 @@ export default function Home() {
                       if (e.key === "Escape") {
                         setIsAddingCategory(false);
                         setNewCategoryName("");
-                  }
-                }}
+                      }
+                    }}
                     placeholder="Enter category name..."
                     autoFocus
                     className="flex-1 px-3 py-2 border border-white/30 rounded-xl bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300 text-sm placeholder:text-purple-400/60"
@@ -1719,17 +1823,17 @@ export default function Home() {
                   >
                     Add
                   </button>
-          <button
+                  <button
                     onClick={() => {
                       // State change: Hide the form and clear input
                       setIsAddingCategory(false);
                       setNewCategoryName("");
                     }}
                     className="px-3 py-2 bg-white/30 hover:bg-white/50 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-sm border border-white/20 text-black dark:text-zinc-50 rounded-xl transition-all duration-300 text-sm"
-          >
+                  >
                     Cancel
-          </button>
-        </div>
+                  </button>
+                </div>
               )}
             </div>
 
@@ -1748,17 +1852,17 @@ export default function Home() {
                   {/* Category header - contains toggle button and assignee management */}
                   <div className="group flex items-center justify-between p-4 hover:bg-white/30 dark:hover:bg-white/10 transition-all duration-300 rounded-t-2xl">
                     {/* Left side: Toggle button with category name */}
-                  <button
-                    onClick={() => {
-                      // STATE UPDATE: When clicked, toggle this category's visibility
-                      // Step 1: handleToggleCategory flips isOpen (true ↔ false)
-                      // Step 2: React re-renders with new state
-                      // Step 3: Chevron rotates and chore list shows/hides
-                      handleToggleCategory(category.id);
-                    }}
+                    <button
+                      onClick={() => {
+                        // STATE UPDATE: When clicked, toggle this category's visibility
+                        // Step 1: handleToggleCategory flips isOpen (true ↔ false)
+                        // Step 2: React re-renders with new state
+                        // Step 3: Chevron rotates and chore list shows/hides
+                        handleToggleCategory(category.id);
+                      }}
                       className="flex items-center gap-2 text-left flex-1"
-                    aria-expanded={category.isOpen}
-                  >
+                      aria-expanded={category.isOpen}
+                    >
                       {/* Chevron icon - rotates based on isOpen state */}
                       {/* 
                         ROTATION LOGIC:
@@ -1797,7 +1901,9 @@ export default function Home() {
                       {category.assigneeIds.length > 0 && (
                         <div className="flex gap-1.5">
                           {category.assigneeIds.map((assigneeId) => {
-                            const assignee = assignees.find((a) => a.id === assigneeId);
+                            const assignee = assignees.find(
+                              (a) => a.id === assigneeId
+                            );
                             return assignee ? (
                               <span
                                 key={assignee.id}
@@ -1808,92 +1914,109 @@ export default function Home() {
                               </span>
                             ) : null;
                           })}
-                    </div>
+                        </div>
                       )}
-                      
+
                       {/* Button to manage category assignees - shows on hover or when assignees exist */}
                       <div className="relative">
                         <button
                           onClick={(e) => {
                             // Stop event from bubbling to the category toggle button
                             e.stopPropagation();
-                            
+
                             // STATE UPDATE: Toggle assignee selector for this category
                             const button = e.currentTarget;
                             const rect = button.getBoundingClientRect();
-                            
+
                             // Calculate position - dropdown should appear right below the button
                             const dropdownWidth = 224; // w-56 = 224px
                             let left = rect.left + window.scrollX; // Add scroll offset for absolute positioning
                             const top = rect.bottom + window.scrollY + 4; // Add scroll offset for absolute positioning
-                            
+
                             // Ensure dropdown doesn't go off-screen to the right
                             if (rect.left + dropdownWidth > window.innerWidth) {
-                              left = window.innerWidth - dropdownWidth - 8 + window.scrollX;
+                              left =
+                                window.innerWidth -
+                                dropdownWidth -
+                                8 +
+                                window.scrollX;
                             }
-                            
+
                             setDropdownPosition({ top, left });
                             setOpenCategoryAssigneeSelector(
-                              openCategoryAssigneeSelector === category.id ? null : category.id
+                              openCategoryAssigneeSelector === category.id
+                                ? null
+                                : category.id
                             );
                           }}
                           className={`px-2 py-1 text-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200 hover:bg-white/50 dark:hover:bg-white/20 backdrop-blur-sm rounded-lg transition-all duration-300 border border-transparent hover:border-white/30 ${
-                            category.assigneeIds.length === 0 ? "opacity-0 group-hover:opacity-100" : ""
+                            category.assigneeIds.length === 0
+                              ? "opacity-0 group-hover:opacity-100"
+                              : ""
                           }`}
                           aria-label="Manage category default assignees"
                           title="Set default assignees for all chores in this category"
                         >
                           👤
-                  </button>
+                        </button>
 
                         {/* Category assignee selector dropdown */}
-                        {isMounted && openCategoryAssigneeSelector === category.id && dropdownPosition && createPortal(
-                          <div
-                            className="absolute z-[9999] w-56 backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-2xl shadow-glass-strong p-3 transition-all duration-300"
-                            style={{
-                              top: `${dropdownPosition.top}px`,
-                              left: `${dropdownPosition.left}px`,
-                            }}
-                          >
-                            <div className="mb-2 pb-2 border-b border-white/20">
-                              <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
-                                Default Assignees
-                              </p>
-                              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
-                                Chores inherit these unless overridden
-                              </p>
-                            </div>
-                            {assignees.length === 0 ? (
-                              <p className="text-sm text-zinc-500 dark:text-zinc-400 p-2">
-                                No assignees yet
-                              </p>
-                            ) : (
-                              <div className="space-y-1">
-                                {assignees.map((assignee) => {
-                                  const isAssigned = category.assigneeIds.includes(assignee.id);
-                                  return (
-                                    <button
-                                      key={assignee.id}
-                                      onClick={() => {
-                                        // STATE UPDATE: Toggle assignee on this category
-                                        handleToggleCategoryAssignee(category.id, assignee.id);
-                                      }}
-                                      className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-300 ${
-                                        isAssigned
-                                          ? "bg-purple-200/60 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 backdrop-blur-sm border border-purple-300/30"
-                                          : "hover:bg-white/40 dark:hover:bg-white/10 text-black dark:text-zinc-50"
-                                      }`}
-                                    >
-                                      {isAssigned ? "✓ " : ""}
-                                      {assignee.name}
-                                    </button>
-                                  );
-                                })}
+                        {isMounted &&
+                          openCategoryAssigneeSelector === category.id &&
+                          dropdownPosition &&
+                          createPortal(
+                            <div
+                              className="absolute z-[9999] w-56 backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-2xl shadow-glass-strong p-3 transition-all duration-300"
+                              style={{
+                                top: `${dropdownPosition.top}px`,
+                                left: `${dropdownPosition.left}px`,
+                              }}
+                            >
+                              <div className="mb-2 pb-2 border-b border-white/20">
+                                <p className="text-xs font-semibold text-zinc-700 dark:text-zinc-300">
+                                  Default Assignees
+                                </p>
+                                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
+                                  Chores inherit these unless overridden
+                                </p>
                               </div>
-                            )}
-                          </div>,
-                          document.body
-                        )}
+                              {assignees.length === 0 ? (
+                                <p className="text-sm text-zinc-500 dark:text-zinc-400 p-2">
+                                  No assignees yet
+                                </p>
+                              ) : (
+                                <div className="space-y-1">
+                                  {assignees.map((assignee) => {
+                                    const isAssigned =
+                                      category.assigneeIds.includes(
+                                        assignee.id
+                                      );
+                                    return (
+                                      <button
+                                        key={assignee.id}
+                                        onClick={() => {
+                                          // STATE UPDATE: Toggle assignee on this category
+                                          handleToggleCategoryAssignee(
+                                            category.id,
+                                            assignee.id
+                                          );
+                                        }}
+                                        className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-300 ${
+                                          isAssigned
+                                            ? "bg-purple-200/60 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 backdrop-blur-sm border border-purple-300/30"
+                                            : "hover:bg-white/40 dark:hover:bg-white/10 text-black dark:text-zinc-50"
+                                        }`}
+                                      >
+                                        {isAssigned ? "✓ " : ""}
+                                        {assignee.name}
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>,
+                            document.body
+                          )}
                       </div>
 
                       {/* Delete category button - shows on hover */}
@@ -1901,7 +2024,11 @@ export default function Home() {
                         onClick={(e) => {
                           e.stopPropagation(); // Prevent category toggle
                           // Confirm deletion
-                          if (window.confirm(`Delete "${category.name}" category? All chores in this category will become uncategorized.`)) {
+                          if (
+                            window.confirm(
+                              `Delete "${category.name}" category? All chores in this category will become uncategorized.`
+                            )
+                          ) {
                             handleDeleteCategory(category.id);
                           }
                         }}
@@ -1944,7 +2071,9 @@ export default function Home() {
                           <input
                             type="text"
                             value={newChoreTitleInCategory}
-                            onChange={(e) => setNewChoreTitleInCategory(e.target.value)}
+                            onChange={(e) =>
+                              setNewChoreTitleInCategory(e.target.value)
+                            }
                             onKeyDown={(e) => {
                               if (e.key === "Enter") {
                                 handleAddChoreInCategory(category.id);
@@ -1960,7 +2089,9 @@ export default function Home() {
                           />
                           <div className="flex gap-2">
                             <button
-                              onClick={() => handleAddChoreInCategory(category.id)}
+                              onClick={() =>
+                                handleAddChoreInCategory(category.id)
+                              }
                               className="flex-1 px-3 py-1.5 bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-600/60 dark:hover:bg-purple-700/70 backdrop-blur-sm text-white rounded-xl transition-all duration-300 shadow-glass text-sm font-medium"
                             >
                               Add
@@ -1978,266 +2109,322 @@ export default function Home() {
                         </div>
                       )}
 
-                      {categoryChores.length === 0 && addingChoreInCategory !== category.id && (
-                        <p className="text-sm text-zinc-500 dark:text-zinc-400 py-3 text-center italic">
-                          No chores yet. Click above to add your first chore!
-                        </p>
-                      )}
-                      
+                      {categoryChores.length === 0 &&
+                        addingChoreInCategory !== category.id && (
+                          <p className="text-sm text-zinc-500 dark:text-zinc-400 py-3 text-center italic">
+                            No chores yet. Click above to add your first chore!
+                          </p>
+                        )}
+
                       {categoryChores.length > 0 && (
-                      <ul className="space-y-2" role="list">
-                        {categoryChores.map((chore) => {
-                          // ASSIGNEE INHERITANCE LOGIC:
-                          // Get effective assignees for this chore (direct or inherited from category)
-                          const { assigneeIds: effectiveAssigneeIds, isInherited } = getEffectiveAssignees(chore);
-                          
-                          // Convert assignee IDs to assignee objects for display
-                          const choreAssignees = assignees.filter((assignee) =>
-                            effectiveAssigneeIds.includes(assignee.id)
-                          );
+                        <ul className="space-y-2" role="list">
+                          {categoryChores.map((chore) => {
+                            // ASSIGNEE INHERITANCE LOGIC:
+                            // Get effective assignees for this chore (direct or inherited from category)
+                            const {
+                              assigneeIds: effectiveAssigneeIds,
+                              isInherited,
+                            } = getEffectiveAssignees(chore);
 
-                          return (
-                            <li
-                              key={chore.id}
-                              className="group flex flex-col gap-2 p-3 border border-white/20 rounded-xl bg-white/40 dark:bg-white/5 backdrop-blur-sm hover:bg-white/60 dark:hover:bg-white/10 transition-all duration-300 shadow-sm hover:shadow-md"
-                            >
-                              {/* Main chore row */}
-                              <div className="flex items-start gap-3">
-                                {/* Checkbox input */}
-                                <input
-                                  type="checkbox"
-                                  id={`chore-${chore.id}`}
-                                  checked={chore.completed}
-                                  onChange={() => {
-                                    handleToggleChore(chore.id);
-                                  }}
-                                  aria-label={`Mark "${chore.title}" as ${chore.completed ? "incomplete" : "complete"}`}
-                                  className="mt-1 w-5 h-5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
-                                />
-                                
-                                {/* Chore title label */}
-                                <label
-                                  htmlFor={`chore-${chore.id}`}
-                                  className={`flex-1 cursor-pointer ${
-                                    chore.completed
-                                      ? "line-through text-zinc-400 dark:text-zinc-500"
-                                      : "text-black dark:text-zinc-50"
-                                  }`}
-                                >
-                                  {chore.title}
-                                </label>
+                            // Convert assignee IDs to assignee objects for display
+                            const choreAssignees = assignees.filter(
+                              (assignee) =>
+                                effectiveAssigneeIds.includes(assignee.id)
+                            );
 
-                                {/* Category selector - shows on hover, allows moving to different category */}
-                                {categories.length > 1 && (
-                                  <div className="relative opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <select
-                                      value={chore.categoryId ?? ""}
-                                      onChange={(e) => {
-                                        const categoryId = e.target.value === "" ? null : e.target.value;
-                                        handleMoveChoreToCategory(chore.id, categoryId);
+                            return (
+                              <li
+                                key={chore.id}
+                                className="group flex flex-col gap-2 p-3 border border-white/20 rounded-xl bg-white/40 dark:bg-white/5 backdrop-blur-sm hover:bg-white/60 dark:hover:bg-white/10 transition-all duration-300 shadow-sm hover:shadow-md"
+                              >
+                                {/* Main chore row */}
+                                <div className="flex items-start gap-3">
+                                  {/* Checkbox input */}
+                                  <input
+                                    type="checkbox"
+                                    id={`chore-${chore.id}`}
+                                    checked={chore.completed}
+                                    onChange={() => {
+                                      handleToggleChore(chore.id);
+                                    }}
+                                    aria-label={`Mark "${chore.title}" as ${
+                                      chore.completed
+                                        ? "incomplete"
+                                        : "complete"
+                                    }`}
+                                    className="mt-1 w-5 h-5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
+                                  />
+
+                                  {/* Chore title label */}
+                                  <label
+                                    htmlFor={`chore-${chore.id}`}
+                                    className={`flex-1 cursor-pointer ${
+                                      chore.completed
+                                        ? "line-through text-zinc-400 dark:text-zinc-500"
+                                        : "text-black dark:text-zinc-50"
+                                    }`}
+                                  >
+                                    {chore.title}
+                                  </label>
+
+                                  {/* Category selector - shows on hover, allows moving to different category */}
+                                  {categories.length > 1 && (
+                                    <div className="relative opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <select
+                                        value={chore.categoryId ?? ""}
+                                        onChange={(e) => {
+                                          const categoryId =
+                                            e.target.value === ""
+                                              ? null
+                                              : e.target.value;
+                                          handleMoveChoreToCategory(
+                                            chore.id,
+                                            categoryId
+                                          );
+                                        }}
+                                        onClick={(e) => e.stopPropagation()} // Prevent category accordion toggle
+                                        className="px-2 py-1 text-xs border border-white/30 rounded-lg bg-white/50 dark:bg-white/10 backdrop-blur-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer transition-all duration-300"
+                                        title="Move to another category"
+                                      >
+                                        {categories.map((cat) => (
+                                          <option key={cat.id} value={cat.id}>
+                                            {cat.id === category.id
+                                              ? `📁 ${cat.name}`
+                                              : cat.name}
+                                          </option>
+                                        ))}
+                                        <option value="">Uncategorized</option>
+                                      </select>
+                                    </div>
+                                  )}
+
+                                  {/* Assignee button and selector - shows on hover */}
+                                  <div className="relative">
+                                    {/* "+" button to open assignee selector - hidden until hover/focus */}
+                                    <button
+                                      onClick={(e) => {
+                                        // STATE UPDATE: Toggle assignee selector for this chore
+                                        // If this chore's selector is already open, close it
+                                        // Otherwise, open it (and close any other open selector)
+                                        const button = e.currentTarget;
+                                        const rect =
+                                          button.getBoundingClientRect();
+
+                                        // Calculate position - dropdown should appear right below the button
+                                        const dropdownWidth = 224; // w-56 = 224px
+                                        let left = rect.left + window.scrollX; // Add scroll offset for absolute positioning
+                                        const top =
+                                          rect.bottom + window.scrollY + 4; // Add scroll offset for absolute positioning
+
+                                        // Ensure dropdown doesn't go off-screen to the right
+                                        if (
+                                          rect.left + dropdownWidth >
+                                          window.innerWidth
+                                        ) {
+                                          left =
+                                            window.innerWidth -
+                                            dropdownWidth -
+                                            8 +
+                                            window.scrollX;
+                                        }
+
+                                        setDropdownPosition({ top, left });
+                                        setOpenAssigneeSelector(
+                                          openAssigneeSelector === chore.id
+                                            ? null
+                                            : chore.id
+                                        );
                                       }}
-                                      onClick={(e) => e.stopPropagation()} // Prevent category accordion toggle
-                                      className="px-2 py-1 text-xs border border-white/30 rounded-lg bg-white/50 dark:bg-white/10 backdrop-blur-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer transition-all duration-300"
-                                      title="Move to another category"
+                                      className="px-2 py-1 text-sm text-purple-600 dark:text-purple-400 opacity-0 group-hover:opacity-100 hover:text-purple-800 dark:hover:text-purple-200 hover:bg-white/50 dark:hover:bg-white/20 backdrop-blur-sm rounded-lg transition-all duration-300 border border-transparent hover:border-white/30"
+                                      aria-label="Assign assignees"
+                                      title="Assign someone to this chore"
                                     >
-                                      {categories.map((cat) => (
-                                        <option key={cat.id} value={cat.id}>
-                                          {cat.id === category.id ? `📁 ${cat.name}` : cat.name}
-                                        </option>
-                                      ))}
-                                      <option value="">Uncategorized</option>
-                                    </select>
+                                      +
+                                    </button>
                                   </div>
-                                )}
 
-                                {/* Assignee button and selector - shows on hover */}
-                                <div className="relative">
-                                  {/* "+" button to open assignee selector - hidden until hover/focus */}
+                                  {/* Delete chore button - shows on hover */}
                                   <button
                                     onClick={(e) => {
-                                      // STATE UPDATE: Toggle assignee selector for this chore
-                                      // If this chore's selector is already open, close it
-                                      // Otherwise, open it (and close any other open selector)
-                                      const button = e.currentTarget;
-                                      const rect = button.getBoundingClientRect();
-                                      
-                                      // Calculate position - dropdown should appear right below the button
-                                      const dropdownWidth = 224; // w-56 = 224px
-                                      let left = rect.left + window.scrollX; // Add scroll offset for absolute positioning
-                                      const top = rect.bottom + window.scrollY + 4; // Add scroll offset for absolute positioning
-                                      
-                                      // Ensure dropdown doesn't go off-screen to the right
-                                      if (rect.left + dropdownWidth > window.innerWidth) {
-                                        left = window.innerWidth - dropdownWidth - 8 + window.scrollX;
+                                      e.preventDefault();
+                                      // Confirm deletion
+                                      if (
+                                        window.confirm(
+                                          `Delete "${chore.title}"?`
+                                        )
+                                      ) {
+                                        handleDeleteChore(chore.id);
                                       }
-                                      
-                                      setDropdownPosition({ top, left });
-                                      setOpenAssigneeSelector(
-                                        openAssigneeSelector === chore.id ? null : chore.id
-                                      );
                                     }}
-                                    className="px-2 py-1 text-sm text-purple-600 dark:text-purple-400 opacity-0 group-hover:opacity-100 hover:text-purple-800 dark:hover:text-purple-200 hover:bg-white/50 dark:hover:bg-white/20 backdrop-blur-sm rounded-lg transition-all duration-300 border border-transparent hover:border-white/30"
-                                    aria-label="Assign assignees"
-                                    title="Assign someone to this chore"
+                                    className="px-2 py-1 text-sm text-red-500 dark:text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-100/40 dark:hover:bg-red-950/40 backdrop-blur-sm rounded-lg transition-all duration-300"
+                                    aria-label="Delete chore"
+                                    title="Delete this chore"
                                   >
-                                    +
+                                    🗑️
                                   </button>
                                 </div>
 
-                                {/* Delete chore button - shows on hover */}
-                                <button
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    // Confirm deletion
-                                    if (window.confirm(`Delete "${chore.title}"?`)) {
-                                      handleDeleteChore(chore.id);
-                                    }
-                                  }}
-                                  className="px-2 py-1 text-sm text-red-500 dark:text-red-400 opacity-0 group-hover:opacity-100 hover:bg-red-100/40 dark:hover:bg-red-950/40 backdrop-blur-sm rounded-lg transition-all duration-300"
-                                  aria-label="Delete chore"
-                                  title="Delete this chore"
-                                >
-                                  🗑️
-                                </button>
-                              </div>
-
-                              {/* Assignee selector dropdown - rendered outside relative container using absolute positioning */}
-                              {isMounted && openAssigneeSelector === chore.id && dropdownPosition && createPortal(
-                                <div
-                                  className="absolute z-[9999] w-56 backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-2xl shadow-glass-strong p-2 transition-all duration-300"
-                                  style={{
-                                    top: `${dropdownPosition.top}px`,
-                                    left: `${dropdownPosition.left}px`,
-                                  }}
-                                >
-                                  {/* Quick add assignee form */}
-                                  {addingAssigneeInChore === chore.id ? (
-                                    <div className="p-2 border-b border-white/20 mb-2">
-                                      <input
-                                        type="text"
-                                        value={newAssigneeNameInChore}
-                                        onChange={(e) => setNewAssigneeNameInChore(e.target.value)}
-                                        onKeyDown={(e) => {
-                                          e.stopPropagation(); // Prevent event from bubbling
-                                          if (e.key === "Enter") {
-                                            handleQuickAddAssignee(chore.id);
-                                          }
-                                          if (e.key === "Escape") {
-                                            setAddingAssigneeInChore(null);
-                                            setNewAssigneeNameInChore("");
-                                          }
-                                        }}
-                                        onClick={(e) => e.stopPropagation()} // Prevent dropdown from closing
-                                        placeholder="New assignee name..."
-                                        autoFocus
-                                        className="w-full px-2 py-1 mb-2 text-sm border border-white/30 rounded-lg bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300 placeholder:text-purple-400/60"
-                                      />
-                                      <div className="flex gap-1">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            handleQuickAddAssignee(chore.id);
-                                          }}
-                                          className="flex-1 px-2 py-1 text-xs bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-600/60 dark:hover:bg-purple-700/70 backdrop-blur-sm text-white rounded-lg transition-all duration-300"
-                                        >
-                                          Create & Assign
-                                        </button>
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            setAddingAssigneeInChore(null);
-                                            setNewAssigneeNameInChore("");
-                                          }}
-                                          className="px-2 py-1 text-xs bg-white/30 hover:bg-white/50 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-sm border border-white/20 text-black dark:text-zinc-50 rounded-lg transition-all duration-300"
-                                        >
-                                          Cancel
-                                        </button>
-                                      </div>
-                                    </div>
-                                  ) : (
-                                    /* "Create new" button */
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setAddingAssigneeInChore(chore.id);
+                                {/* Assignee selector dropdown - rendered outside relative container using absolute positioning */}
+                                {isMounted &&
+                                  openAssigneeSelector === chore.id &&
+                                  dropdownPosition &&
+                                  createPortal(
+                                    <div
+                                      className="absolute z-[9999] w-56 backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-2xl shadow-glass-strong p-2 transition-all duration-300"
+                                      style={{
+                                        top: `${dropdownPosition.top}px`,
+                                        left: `${dropdownPosition.left}px`,
                                       }}
-                                      className="w-full text-left px-3 py-2 mb-1 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 rounded transition-colors flex items-center gap-2"
                                     >
-                                      <span className="text-lg">+</span>
-                                      <span>Create new assignee</span>
-                                    </button>
-                                  )}
-
-                                  {/* Existing assignees list */}
-                                  {assignees.length === 0 && addingAssigneeInChore !== chore.id ? (
-                                    <p className="text-sm text-zinc-500 dark:text-zinc-400 p-2 text-center italic">
-                                      No assignees yet
-                                    </p>
-                                  ) : assignees.length > 0 && (
-                                    <div className="space-y-1">
-                                      {assignees.map((assignee) => {
-                                        const isAssigned = chore.assigneeIds.includes(assignee.id);
-                                        return (
-                    <button
-                                            key={assignee.id}
-                                            onClick={(e) => {
-                                              e.stopPropagation();
-                                              // STATE UPDATE: Toggle assignee assignment
-                                              // handleToggleAssignee updates the chore's assigneeIds array
-                                              // React re-renders and the badge list updates
-                                              handleToggleAssignee(chore.id, assignee.id);
+                                      {/* Quick add assignee form */}
+                                      {addingAssigneeInChore === chore.id ? (
+                                        <div className="p-2 border-b border-white/20 mb-2">
+                                          <input
+                                            type="text"
+                                            value={newAssigneeNameInChore}
+                                            onChange={(e) =>
+                                              setNewAssigneeNameInChore(
+                                                e.target.value
+                                              )
+                                            }
+                                            onKeyDown={(e) => {
+                                              e.stopPropagation(); // Prevent event from bubbling
+                                              if (e.key === "Enter") {
+                                                handleQuickAddAssignee(
+                                                  chore.id
+                                                );
+                                              }
+                                              if (e.key === "Escape") {
+                                                setAddingAssigneeInChore(null);
+                                                setNewAssigneeNameInChore("");
+                                              }
                                             }}
-                                            className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-300 ${
-                                              isAssigned
-                                                ? "bg-purple-200/60 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 backdrop-blur-sm border border-purple-300/30"
-                                                : "hover:bg-white/40 dark:hover:bg-white/10 text-black dark:text-zinc-50"
-                                            }`}
-                                          >
-                                            {isAssigned ? "✓ " : ""}
-                                            {assignee.name}
-                    </button>
-                                        );
-                                      })}
-                                    </div>
-                                  )}
-                                </div>,
-                                document.body
-                              )}
+                                            onClick={(e) => e.stopPropagation()} // Prevent dropdown from closing
+                                            placeholder="New assignee name..."
+                                            autoFocus
+                                            className="w-full px-2 py-1 mb-2 text-sm border border-white/30 rounded-lg bg-white/50 dark:bg-white/10 backdrop-blur-md text-black dark:text-zinc-50 focus:outline-none focus:ring-2 focus:ring-purple-400/50 focus:border-purple-300 transition-all duration-300 placeholder:text-purple-400/60"
+                                          />
+                                          <div className="flex gap-1">
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleQuickAddAssignee(
+                                                  chore.id
+                                                );
+                                              }}
+                                              className="flex-1 px-2 py-1 text-xs bg-purple-600/80 hover:bg-purple-700/90 dark:bg-purple-600/60 dark:hover:bg-purple-700/70 backdrop-blur-sm text-white rounded-lg transition-all duration-300"
+                                            >
+                                              Create & Assign
+                                            </button>
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                setAddingAssigneeInChore(null);
+                                                setNewAssigneeNameInChore("");
+                                              }}
+                                              className="px-2 py-1 text-xs bg-white/30 hover:bg-white/50 dark:bg-white/10 dark:hover:bg-white/20 backdrop-blur-sm border border-white/20 text-black dark:text-zinc-50 rounded-lg transition-all duration-300"
+                                            >
+                                              Cancel
+                                            </button>
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        /* "Create new" button */
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setAddingAssigneeInChore(chore.id);
+                                          }}
+                                          className="w-full text-left px-3 py-2 mb-1 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950 rounded transition-colors flex items-center gap-2"
+                                        >
+                                          <span className="text-lg">+</span>
+                                          <span>Create new assignee</span>
+                                        </button>
+                                      )}
 
-                              {/* Assigned assignees as pill badges */}
-                              {/* 
+                                      {/* Existing assignees list */}
+                                      {assignees.length === 0 &&
+                                      addingAssigneeInChore !== chore.id ? (
+                                        <p className="text-sm text-zinc-500 dark:text-zinc-400 p-2 text-center italic">
+                                          No assignees yet
+                                        </p>
+                                      ) : (
+                                        assignees.length > 0 && (
+                                          <div className="space-y-1">
+                                            {assignees.map((assignee) => {
+                                              const isAssigned =
+                                                chore.assigneeIds.includes(
+                                                  assignee.id
+                                                );
+                                              return (
+                                                <button
+                                                  key={assignee.id}
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    // STATE UPDATE: Toggle assignee assignment
+                                                    // handleToggleAssignee updates the chore's assigneeIds array
+                                                    // React re-renders and the badge list updates
+                                                    handleToggleAssignee(
+                                                      chore.id,
+                                                      assignee.id
+                                                    );
+                                                  }}
+                                                  className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-300 ${
+                                                    isAssigned
+                                                      ? "bg-purple-200/60 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 backdrop-blur-sm border border-purple-300/30"
+                                                      : "hover:bg-white/40 dark:hover:bg-white/10 text-black dark:text-zinc-50"
+                                                  }`}
+                                                >
+                                                  {isAssigned ? "✓ " : ""}
+                                                  {assignee.name}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        )
+                                      )}
+                                    </div>,
+                                    document.body
+                                  )}
+
+                                {/* Assigned assignees as pill badges */}
+                                {/* 
                                 VISUAL INDICATORS FOR ASSIGNEE INHERITANCE:
                                 - Direct assignees: Solid blue badges (bg-blue-100)
                                 - Inherited assignees: Lighter purple badges with dotted border (bg-purple-50)
                                 - This helps users understand which assignees are explicitly assigned vs inherited
                               */}
-                              {choreAssignees.length > 0 && (
-                                <div className="flex flex-wrap gap-1.5 ml-8">
-                                  {choreAssignees.map((assignee) => (
-                                    <span
-                                      key={assignee.id}
-                                      className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full backdrop-blur-sm shadow-sm ${
-                                        isInherited
-                                          ? "bg-purple-100/50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-dashed border-purple-300/40"
-                                          : "bg-purple-200/60 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 border border-purple-300/30"
-                                      }`}
-                                      title={isInherited ? `Inherited from "${category.name}" category` : "Directly assigned"}
-                                    >
-                                      {isInherited && "↓ "}
-                                      {assignee.name}
-                                    </span>
-                                  ))}
-                                  {isInherited && (
-                                    <span className="text-xs text-purple-600 dark:text-purple-400 italic self-center">
-                                      (from category)
-                                    </span>
-                                  )}
-                                </div>
-                              )}
-                            </li>
-                          );
-                        })}
-                      </ul>
+                                {choreAssignees.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 ml-8">
+                                    {choreAssignees.map((assignee) => (
+                                      <span
+                                        key={assignee.id}
+                                        className={`inline-flex items-center px-3 py-1 text-xs font-medium rounded-full backdrop-blur-sm shadow-sm ${
+                                          isInherited
+                                            ? "bg-purple-100/50 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 border border-dashed border-purple-300/40"
+                                            : "bg-purple-200/60 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 border border-purple-300/30"
+                                        }`}
+                                        title={
+                                          isInherited
+                                            ? `Inherited from "${category.name}" category`
+                                            : "Directly assigned"
+                                        }
+                                      >
+                                        {isInherited && "↓ "}
+                                        {assignee.name}
+                                      </span>
+                                    ))}
+                                    {isInherited && (
+                                      <span className="text-xs text-purple-600 dark:text-purple-400 italic self-center">
+                                        (from category)
+                                      </span>
+                                    )}
+                                  </div>
+                                )}
+                              </li>
+                            );
+                          })}
+                        </ul>
                       )}
                     </div>
                   )}
@@ -2268,7 +2455,7 @@ export default function Home() {
                       </span>
                     </h2>
                   </div>
-                  
+
                   {/* Uncategorized chores list - always visible (no accordion) */}
                   <div className="px-4 pb-4">
                     <ul className="space-y-2" role="list">
@@ -2286,17 +2473,19 @@ export default function Home() {
                             {/* Main chore row */}
                             <div className="flex items-start gap-3">
                               {/* Checkbox input */}
-                      <input
-                        type="checkbox"
+                              <input
+                                type="checkbox"
                                 id={`chore-${chore.id}`}
                                 checked={chore.completed}
                                 onChange={() => {
                                   handleToggleChore(chore.id);
                                 }}
-                                aria-label={`Mark "${chore.title}" as ${chore.completed ? "incomplete" : "complete"}`}
+                                aria-label={`Mark "${chore.title}" as ${
+                                  chore.completed ? "incomplete" : "complete"
+                                }`}
                                 className="mt-1 w-5 h-5 rounded border-zinc-300 dark:border-zinc-600 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 cursor-pointer"
                               />
-                              
+
                               {/* Chore title label */}
                               <label
                                 htmlFor={`chore-${chore.id}`}
@@ -2307,7 +2496,7 @@ export default function Home() {
                                 }`}
                               >
                                 {chore.title}
-                    </label>
+                              </label>
 
                               {/* Category selector for uncategorized chores - shows on hover */}
                               {categories.length > 0 && (
@@ -2315,22 +2504,33 @@ export default function Home() {
                                   <select
                                     value=""
                                     onChange={(e) => {
-                                      const categoryId = e.target.value === "" ? null : e.target.value;
-                                      handleMoveChoreToCategory(chore.id, categoryId);
+                                      const categoryId =
+                                        e.target.value === ""
+                                          ? null
+                                          : e.target.value;
+                                      handleMoveChoreToCategory(
+                                        chore.id,
+                                        categoryId
+                                      );
                                     }}
                                     className="px-2 py-1 text-xs border border-white/30 rounded-lg bg-white/50 dark:bg-white/10 backdrop-blur-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200 focus:outline-none focus:ring-2 focus:ring-purple-400/50 cursor-pointer transition-all duration-300"
                                     title="Move to category"
                                   >
-                                    <option value="" disabled>📁 Move to...</option>
+                                    <option value="" disabled>
+                                      📁 Move to...
+                                    </option>
                                     {categories.map((category) => (
-                                      <option key={category.id} value={category.id}>
+                                      <option
+                                        key={category.id}
+                                        value={category.id}
+                                      >
                                         {category.name}
                                       </option>
                                     ))}
                                   </select>
                                 </div>
                               )}
-                    
+
                               {/* Assignee button and selector */}
                               <div className="relative">
                                 {/* "+" button to open assignee selector */}
@@ -2341,20 +2541,30 @@ export default function Home() {
                                     // Otherwise, open it (and close any other open selector)
                                     const button = e.currentTarget;
                                     const rect = button.getBoundingClientRect();
-                                    
+
                                     // Calculate position - dropdown should appear right below the button
                                     const dropdownWidth = 192; // w-48 = 192px
                                     let left = rect.left + window.scrollX; // Add scroll offset for absolute positioning
-                                    const top = rect.bottom + window.scrollY + 4; // Add scroll offset for absolute positioning
-                                    
+                                    const top =
+                                      rect.bottom + window.scrollY + 4; // Add scroll offset for absolute positioning
+
                                     // Ensure dropdown doesn't go off-screen to the right
-                                    if (rect.left + dropdownWidth > window.innerWidth) {
-                                      left = window.innerWidth - dropdownWidth - 8 + window.scrollX;
+                                    if (
+                                      rect.left + dropdownWidth >
+                                      window.innerWidth
+                                    ) {
+                                      left =
+                                        window.innerWidth -
+                                        dropdownWidth -
+                                        8 +
+                                        window.scrollX;
                                     }
-                                    
+
                                     setDropdownPosition({ top, left });
                                     setOpenAssigneeSelector(
-                                      openAssigneeSelector === chore.id ? null : chore.id
+                                      openAssigneeSelector === chore.id
+                                        ? null
+                                        : chore.id
                                     );
                                   }}
                                   className="px-2 py-1 text-sm text-purple-600 dark:text-purple-400 hover:text-purple-800 dark:hover:text-purple-200 hover:bg-white/50 dark:hover:bg-white/20 backdrop-blur-sm rounded-lg transition-all duration-300 border border-transparent hover:border-white/30"
@@ -2369,7 +2579,9 @@ export default function Home() {
                                 onClick={(e) => {
                                   e.preventDefault();
                                   // Confirm deletion
-                                  if (window.confirm(`Delete "${chore.title}"?`)) {
+                                  if (
+                                    window.confirm(`Delete "${chore.title}"?`)
+                                  ) {
                                     handleDeleteChore(chore.id);
                                   }
                                 }}
@@ -2382,7 +2594,10 @@ export default function Home() {
                             </div>
 
                             {/* Assignee selector dropdown - rendered outside relative container using absolute positioning */}
-                              {isMounted && openAssigneeSelector === chore.id && dropdownPosition && createPortal(
+                            {isMounted &&
+                              openAssigneeSelector === chore.id &&
+                              dropdownPosition &&
+                              createPortal(
                                 <div
                                   className="absolute z-[9999] w-48 backdrop-blur-xl bg-white/80 dark:bg-purple-950/80 border border-white/30 rounded-2xl shadow-glass-strong p-2 transition-all duration-300"
                                   style={{
@@ -2390,39 +2605,45 @@ export default function Home() {
                                     left: `${dropdownPosition.left}px`,
                                   }}
                                 >
-                                    {assignees.length === 0 ? (
-                                      <p className="text-sm text-zinc-500 dark:text-zinc-400 p-2">
-                                        No assignees yet
-                                      </p>
-                                    ) : (
-                                      <div className="space-y-1">
-                                        {assignees.map((assignee) => {
-                                          const isAssigned = chore.assigneeIds.includes(assignee.id);
-                                          return (
-                                            <button
-                                              key={assignee.id}
-                                              onClick={() => {
-                                                // STATE UPDATE: Toggle assignee assignment
-                                                // handleToggleAssignee updates the chore's assigneeIds array
-                                                // React re-renders and the badge list updates
-                                                handleToggleAssignee(chore.id, assignee.id);
-                                              }}
-                                              className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-300 ${
-                                                isAssigned
-                                                  ? "bg-purple-200/60 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 backdrop-blur-sm border border-purple-300/30"
-                                                  : "hover:bg-white/40 dark:hover:bg-white/10 text-black dark:text-zinc-50"
-                                              }`}
-                                            >
-                                              {isAssigned ? "✓ " : ""}
-                                              {assignee.name}
-                                            </button>
+                                  {assignees.length === 0 ? (
+                                    <p className="text-sm text-zinc-500 dark:text-zinc-400 p-2">
+                                      No assignees yet
+                                    </p>
+                                  ) : (
+                                    <div className="space-y-1">
+                                      {assignees.map((assignee) => {
+                                        const isAssigned =
+                                          chore.assigneeIds.includes(
+                                            assignee.id
                                           );
-                                        })}
-                                      </div>
-                                    )}
-                                  </div>,
-                                  document.body
-                                )}
+                                        return (
+                                          <button
+                                            key={assignee.id}
+                                            onClick={() => {
+                                              // STATE UPDATE: Toggle assignee assignment
+                                              // handleToggleAssignee updates the chore's assigneeIds array
+                                              // React re-renders and the badge list updates
+                                              handleToggleAssignee(
+                                                chore.id,
+                                                assignee.id
+                                              );
+                                            }}
+                                            className={`w-full text-left px-3 py-2 text-sm rounded-lg transition-all duration-300 ${
+                                              isAssigned
+                                                ? "bg-purple-200/60 dark:bg-purple-900/40 text-purple-900 dark:text-purple-200 backdrop-blur-sm border border-purple-300/30"
+                                                : "hover:bg-white/40 dark:hover:bg-white/10 text-black dark:text-zinc-50"
+                                            }`}
+                                          >
+                                            {isAssigned ? "✓ " : ""}
+                                            {assignee.name}
+                                          </button>
+                                        );
+                                      })}
+                                    </div>
+                                  )}
+                                </div>,
+                                document.body
+                              )}
 
                             {/* Assigned assignees as pill badges */}
                             {choreAssignees.length > 0 && (
@@ -2445,8 +2666,8 @@ export default function Home() {
                 </div>
               );
             })()}
-            </div>
-          )}
+          </div>
+        )}
       </main>
     </div>
   );
