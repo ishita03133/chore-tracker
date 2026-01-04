@@ -381,7 +381,7 @@ export default function Home() {
   
   // Load all data from Supabase when user logs in
   useEffect(() => {
-    if (!isAuthenticated || !householdId) return;
+    if (!isAuthenticated || !householdId || !userName) return;
     
     const loadDataFromSupabase = async () => {
       setIsLoading(true);
@@ -397,7 +397,32 @@ export default function Home() {
           .eq("household_id", householdId);
         
         if (assigneesError) throw assigneesError;
-        setAssignees(assigneesData || []);
+        
+        // Auto-create assignee for this user if they don't exist
+        const userExists = assigneesData?.some(
+          (assignee) => assignee.name.toLowerCase() === userName.toLowerCase()
+        );
+        
+        if (!userExists && userName) {
+          // Create assignee for the logged-in user
+          const { data: newAssignee, error: createError } = await supabase
+            .from("assignees")
+            .insert({
+              name: userName,
+              household_id: householdId,
+            })
+            .select()
+            .single();
+          
+          if (createError) {
+            console.error("Failed to auto-create assignee:", createError);
+          } else if (newAssignee) {
+            // Add the new assignee to the list
+            setAssignees([...(assigneesData || []), newAssignee]);
+          }
+        } else {
+          setAssignees(assigneesData || []);
+        }
         
         // Fetch categories for this household
         const { data: categoriesData, error: categoriesError } = await supabase
@@ -441,7 +466,7 @@ export default function Home() {
     };
     
     loadDataFromSupabase();
-  }, [isAuthenticated, householdId]); // Run when user logs in or household changes
+  }, [isAuthenticated, householdId, userName]); // Run when user logs in or household changes
 
   // Close dropdowns when clicking outside
   // This improves UX by automatically closing selectors when user clicks elsewhere
