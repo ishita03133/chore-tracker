@@ -1,52 +1,33 @@
-"use client"; // This tells Next.js this is a client component (needed for useState and interactivity)
+"use client";
 
-import { useState, useEffect } from "react"; // Import hooks to manage component state and side effects
-import { createPortal } from "react-dom"; // Import createPortal to render dropdowns outside the DOM hierarchy
-import LoginScreen from "@/components/LoginScreen"; // Custom login component for household auth
+import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import LoginScreen from "@/components/LoginScreen";
 
-/* ============================================
-   DATA MODELS - Type Definitions
-   ============================================
-   These interfaces define the structure of our data.
-   TypeScript uses these to ensure we always use the correct data format.
-*/
-
-// Assignee represents a person who can be assigned to chores
-// UPDATED FOR SUPABASE: Now uses UUID strings and includes household_id
 interface Assignee {
-  id: string; // UUID from Supabase (e.g., "550e8400-e29b-41d4-a716-446655440000")
-  name: string; // Display name (e.g., "Alice", "Bob", "Roommate 1")
-  household_id: string; // Links to household - ensures data isolation
+  id: string;
+  name: string;
+  household_id: string;
 }
 
-// Category groups related chores together (e.g., "Kitchen", "Bathroom", "Outdoor")
-// UPDATED FOR SUPABASE: Now uses UUID strings and includes household_id
 interface Category {
-  id: string; // UUID from Supabase
-  name: string; // Display name (e.g., "Kitchen", "Bathroom", "Weekly Tasks")
-  isOpen?: boolean; // LOCAL ONLY: Whether category is expanded in UI (not saved to DB)
-  assigneeIds: string[]; // Array of assignee UUIDs (default assignees for this category)
-  household_id: string; // Links to household - ensures data isolation
+  id: string;
+  name: string;
+  isOpen?: boolean; // UI-only, not saved to DB
+  assigneeIds: string[];
+  household_id: string;
 }
 
-// Chore represents a single task that needs to be done
-// UPDATED FOR SUPABASE: Now uses UUID strings and includes household_id
 interface Chore {
-  id: string; // UUID from Supabase
-  title: string; // Name/description of the chore (e.g., "Wash dishes", "Take out trash")
-  completed: boolean; // Whether the chore has been completed (true) or not (false)
-  assigneeIds: string[]; // Array of assignee UUIDs - allows multiple people per chore
-  categoryId?: string | null; // Optional category UUID - null means uncategorized
-  household_id: string; // Links to household - ensures data isolation
+  id: string;
+  title: string;
+  completed: boolean;
+  assigneeIds: string[];
+  categoryId?: string | null;
+  household_id: string;
 }
 
-/* ============================================
-   DATABASE TYPES - Supabase Response Format
-   ============================================
-   These types match the snake_case format returned by Supabase.
-   We transform these to camelCase for app usage.
-*/
-
+// DB response types (snake_case from Supabase)
 interface CategoryDB {
   id: string;
   name: string;
@@ -63,14 +44,6 @@ interface ChoreDB {
   category_id: string | null;
 }
 
-/* ============================================
-   REACT STATE - Data Storage
-   ============================================
-   useState hooks store our app's data in memory.
-   When state changes, React automatically re-renders the component.
-*/
-
-// Helper function to safely extract error messages from unknown error types
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   if (typeof error === "string") return error;
@@ -81,192 +54,60 @@ function getErrorMessage(error: unknown): string {
 }
 
 export default function Home() {
-  /* ============================================
-     AUTH STATE - User Identity & Household
-     ============================================
-     
-     LIGHTWEIGHT AUTH MODEL:
-     Instead of traditional email/password auth, we use a simple name + household code system.
-     This is perfect for household apps where:
-     - Trust is assumed (you trust your roommates)
-     - Quick setup is important (no email verification)
-     - Shared access is desired (everyone in household can edit)
-     
-     WHY STORE SESSION IN LOCALSTORAGE:
-     - Session persists across page reloads (userId, userName, householdId)
-     - Enables automatic login without re-entering credentials
-     - No need for JWT tokens or session cookies
-     - Easy to implement and understand
-     - All actual data (chores, categories, assignees) is stored in Supabase
-     - Can easily upgrade to proper auth (OAuth, etc.) later without breaking existing code
-  */
-
-  // Is the user authenticated (logged in)?
+  // Auth state - session stored in localStorage, data in Supabase
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-
-  // User's unique ID from Supabase profiles table (currently unused but kept for future features)
   const [_userId, setUserId] = useState<string | null>(null);
-
-  // User's display name
   const [userName, setUserName] = useState<string | null>(null);
-
-  // Household code this user belongs to (shared between roommates)
   const [householdId, setHouseholdId] = useState<string | null>(null);
 
-  /* ============================================
-     STATE INITIALIZATION - HYDRATION SAFE
-     ============================================
-     
-     CRITICAL FOR NEXT.JS:
-     To avoid hydration mismatches, server and client must render IDENTICAL HTML initially.
-     
-     THE HYDRATION PROCESS:
-     1. Server (Build): Renders static HTML with empty arrays → Fast initial load
-     2. Browser (First Paint): Shows server HTML instantly → User sees page immediately
-     3. Client (Hydration): React "hydrates" the HTML, making it interactive
-     4. After Hydration: useEffect runs, loads data from Supabase, updates display
-     
-     WHY WE START WITH EMPTY ARRAYS:
-     - Server: Always renders with [] (no Supabase connection on server)
-     - Client: Also starts with [] (matching server HTML)
-     - After hydration: useEffect loads data from Supabase
-     - Result: No hydration mismatch! ✅
-     
-     WHAT HAPPENS IF WE LOAD IN useState:
-     - Server: Renders with [] (no database)
-     - Client: Immediately loads from Supabase → [{chore1}, {chore2}]
-     - HTML doesn't match → Hydration error! ❌
-  */
-
-  // State to store all assignees (people who can do chores)
-  // Starts empty - will be loaded from localStorage in useEffect
+  // Data state - loaded from Supabase after auth
   const [assignees, setAssignees] = useState<Assignee[]>([]);
-
-  // State to store all categories (groups of related chores)
-  // Starts empty - will be loaded from localStorage in useEffect
   const [categories, setCategories] = useState<Category[]>([]);
-
-  // State to store all chores (tasks that need to be done)
-  // Starts empty - will be loaded from localStorage in useEffect
   const [chores, setChores] = useState<Chore[]>([]);
 
-  // State to control whether the "add chore" input form is visible
-  // When true, the input form is shown; when false, it's hidden
-  // This allows us to show/hide the form without losing the input value
+  // UI state
   const [isAddingChore, setIsAddingChore] = useState(false);
-
-  // State to store the text the user is typing for a new chore title
-  // This is separate from the chores array - it's just temporary input
   const [newChoreTitle, setNewChoreTitle] = useState("");
-
-  // State to store the selected category ID for the new chore being created
-  // When undefined, the chore will be uncategorized
-  // When set to a category ID, the chore will be assigned to that category
   const [newChoreCategoryId, setNewChoreCategoryId] = useState<
     string | undefined
   >(undefined);
-
-  // State to control whether the "add category" input form is visible
-  // When true, the input form is shown; when false, it's hidden
   const [isAddingCategory, setIsAddingCategory] = useState(false);
-
-  // State to store the text the user is typing for a new category name
-  // This is separate from the categories array - it's just temporary input
   const [newCategoryName, setNewCategoryName] = useState("");
-
-  // State to control whether the "add assignee" input form is visible
-  // When true, the input form is shown; when false, it's hidden
   const [isAddingAssignee, setIsAddingAssignee] = useState(false);
-
-  // State to store the text the user is typing for a new assignee name
-  // This is separate from the assignees array - it's just temporary input
   const [newAssigneeName, setNewAssigneeName] = useState("");
-
-  // State to track which chore's assignee selector is currently open
-  // When set to a chore ID, that chore's assignee selector is visible
-  // When null, no selector is open
   const [openAssigneeSelector, setOpenAssigneeSelector] = useState<
     string | null
   >(null);
-
-  // State to track which category's assignee selector is currently open
-  // When set to a category ID, that category's assignee selector is visible
-  // When null, no selector is open
   const [openCategoryAssigneeSelector, setOpenCategoryAssigneeSelector] =
     useState<string | null>(null);
-
-  // State to track which category is currently adding a chore inline
-  // When set to a category ID, that category shows an inline chore creation form
-  // When null, no inline form is shown
   const [addingChoreInCategory, setAddingChoreInCategory] = useState<
     string | null
   >(null);
-
-  // State to store the title for a new chore being added within a category
   const [newChoreTitleInCategory, setNewChoreTitleInCategory] = useState("");
-
-  // State to track if user is adding a new assignee from within a chore's assignee selector
-  // When set to a chore ID, that chore's selector shows "add new assignee" form
-  // When null, no inline assignee creation is shown
   const [addingAssigneeInChore, setAddingAssigneeInChore] = useState<
     string | null
   >(null);
-
-  // State to store the name for a new assignee being created from a chore selector
   const [newAssigneeNameInChore, setNewAssigneeNameInChore] = useState("");
-
-  // State to store the position of the dropdown (for fixed positioning)
   const [dropdownPosition, setDropdownPosition] = useState<{
     top: number;
     left: number;
   } | null>(null);
-
-  // State to track if component is mounted (needed for portal rendering)
   const [isMounted, setIsMounted] = useState(false);
-
-  // State to track if household code was just copied (for showing feedback)
   const [codeCopied, setCodeCopied] = useState(false);
-
-  // Loading and error states for Supabase operations
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  /* ============================================
-     AUTH SESSION PERSISTENCE (localStorage)
-     ============================================
-     
-     LIGHTWEIGHT SESSION MANAGEMENT:
-     - localStorage is ONLY used for auth session (userId, userName, householdId)
-     - Enables automatic login when user returns to the app
-     - All data (chores, categories, assignees) is stored in Supabase
-     
-     WHY localStorage FOR AUTH:
-     - Simple session persistence across page reloads
-     - No need for JWT tokens or complex cookie management
-     - Easy to clear on sign out
-     - Browser-native, no dependencies
-     
-     NEXT.JS CLIENT-SIDE CONSTRAINT:
-     ⚠️ localStorage only exists in the browser (not on server)
-     - useEffect only runs on client-side (after hydration)
-     - Safe to use localStorage inside useEffect
-     - No hydration mismatch! ✅
-  */
-
-  // Set mounted state for portal rendering
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
-  // Check for existing auth on mount
+  // Auto-login: check localStorage for existing session
   useEffect(() => {
-    // Load auth data from localStorage if it exists
     const savedUserId = localStorage.getItem("userId");
     const savedUserName = localStorage.getItem("userName");
     const savedHouseholdId = localStorage.getItem("householdId");
 
     if (savedUserId && savedUserName && savedHouseholdId) {
-      // User is already logged in
       setUserId(savedUserId);
       setUserName(savedUserName);
       setHouseholdId(savedHouseholdId);
@@ -274,7 +115,6 @@ export default function Home() {
     }
   }, []);
 
-  // Login handler - called when user successfully joins a household
   const handleLogin = (name: string, household: string, uid: string) => {
     setUserName(name);
     setHouseholdId(household);
@@ -282,20 +122,15 @@ export default function Home() {
     setIsAuthenticated(true);
   };
 
-  // Sign out handler - clears auth and returns to login screen
   const handleSignOut = () => {
-    // Confirm before signing out
     if (
       confirm(
         "Are you sure you want to sign out? Your chores will remain in the household."
       )
     ) {
-      // Clear auth data from localStorage
       localStorage.removeItem("userId");
       localStorage.removeItem("userName");
       localStorage.removeItem("householdId");
-
-      // Reset auth state
       setUserId(null);
       setUserName(null);
       setHouseholdId(null);
@@ -303,22 +138,17 @@ export default function Home() {
     }
   };
 
-  // Delete assignee handler - removes assignee and clears from chores/categories
   const handleDeleteAssignee = async (assigneeId: string) => {
     const assignee = assignees.find((a) => a.id === assigneeId);
     if (!assignee) return;
 
-    // Check if assignee is used in any chores
     const choresUsingAssignee = chores.filter((chore) =>
       chore.assigneeIds.includes(assigneeId)
     );
-
-    // Check if assignee is used in any categories
     const categoriesUsingAssignee = categories.filter((cat) =>
       cat.assigneeIds.includes(assigneeId)
     );
 
-    // Build confirmation message
     let confirmMessage = `Delete "${assignee.name}"?`;
     if (choresUsingAssignee.length > 0 || categoriesUsingAssignee.length > 0) {
       confirmMessage += `\n\nThis will remove them from:`;
@@ -332,7 +162,6 @@ export default function Home() {
 
     if (!confirm(confirmMessage)) return;
 
-    // Optimistic UI update
     setChores(
       chores.map((chore) => ({
         ...chore,
@@ -350,7 +179,6 @@ export default function Home() {
     try {
       const { supabase } = await import("@/lib/supabaseClient");
 
-      // Remove assignee from all chores (update arrays, use snake_case for DB)
       for (const chore of choresUsingAssignee) {
         await supabase
           .from("chores")
@@ -360,7 +188,6 @@ export default function Home() {
           .eq("id", chore.id);
       }
 
-      // Remove assignee from all categories (update arrays, use snake_case for DB)
       for (const cat of categoriesUsingAssignee) {
         await supabase
           .from("categories")
@@ -370,7 +197,6 @@ export default function Home() {
           .eq("id", cat.id);
       }
 
-      // Delete the assignee
       const { error: deleteError } = await supabase
         .from("assignees")
         .delete()
@@ -386,30 +212,6 @@ export default function Home() {
     }
   };
 
-  /* ============================================
-     SUPABASE DATA LOADING - PRIMARY DATA STORAGE
-     ============================================
-     
-     ALL APP DATA IS STORED IN SUPABASE:
-     - Chores, categories, and assignees are stored in Supabase database
-     - localStorage is ONLY used for auth session (userId, userName, householdId)
-     - This enables true multi-user collaboration across devices
-     
-     WHY SUPABASE FOR DATA STORAGE:
-     - Data is shared across all devices in the household
-     - Multiple users can see and edit the same chores in real-time
-     - Data persists even if you clear browser data
-     - Proper multi-user collaboration with data isolation by household
-     
-     HOW IT WORKS:
-     1. User logs in → householdId is set (stored in localStorage for session)
-     2. This effect triggers → fetches all data for that household from Supabase
-     3. Data is filtered by household_id (so you only see your household's data)
-     4. Loading state shows while fetching
-     5. Error state shows if something goes wrong
-  */
-
-  // Load all data from Supabase when user logs in
   useEffect(() => {
     if (!isAuthenticated || !householdId || !userName) return;
 
@@ -420,7 +222,6 @@ export default function Home() {
       try {
         const { supabase } = await import("@/lib/supabaseClient");
 
-        // Fetch assignees for this household
         const { data: assigneesData, error: assigneesError } = await supabase
           .from("assignees")
           .select("*")
@@ -428,13 +229,11 @@ export default function Home() {
 
         if (assigneesError) throw assigneesError;
 
-        // Auto-create assignee for this user if they don't exist
         const userExists = assigneesData?.some(
           (assignee) => assignee.name.toLowerCase() === userName.toLowerCase()
         );
 
         if (!userExists && userName) {
-          // Create assignee for the logged-in user
           const { data: newAssignee, error: createError } = await supabase
             .from("assignees")
             .insert({
@@ -447,21 +246,18 @@ export default function Home() {
           if (createError) {
             console.error("Failed to auto-create assignee:", createError);
           } else if (newAssignee) {
-            // Add the new assignee to the list
             setAssignees([...(assigneesData || []), newAssignee]);
           }
         } else {
           setAssignees(assigneesData || []);
         }
 
-        // Fetch categories for this household
         const { data: categoriesData, error: categoriesError } = await supabase
           .from("categories")
           .select("*")
           .eq("household_id", householdId);
 
         if (categoriesError) throw categoriesError;
-        // Transform snake_case from DB to camelCase for app, add isOpen for UI
         setCategories(
           (categoriesData || []).map((cat: CategoryDB) => ({
             id: cat.id,
@@ -472,14 +268,12 @@ export default function Home() {
           }))
         );
 
-        // Fetch chores for this household
         const { data: choresData, error: choresError } = await supabase
           .from("chores")
           .select("*")
           .eq("household_id", householdId);
 
         if (choresError) throw choresError;
-        // Transform snake_case from DB to camelCase for app
         setChores(
           (choresData || []).map((chore: ChoreDB) => ({
             id: chore.id,
@@ -502,20 +296,17 @@ export default function Home() {
     };
 
     loadDataFromSupabase();
-  }, [isAuthenticated, householdId, userName]); // Run when user logs in or household changes
+  }, [isAuthenticated, householdId, userName]);
 
-  // Close dropdowns when clicking outside
-  // This improves UX by automatically closing selectors when user clicks elsewhere
   useEffect(() => {
     const handleClickOutside = () => {
       setOpenAssigneeSelector(null);
       setOpenCategoryAssigneeSelector(null);
       setAddingAssigneeInChore(null);
       setNewAssigneeNameInChore("");
-      setDropdownPosition(null); // Reset dropdown position when closing
+      setDropdownPosition(null);
     };
 
-    // Add event listener when any selector is open
     if (
       openAssigneeSelector !== null ||
       openCategoryAssigneeSelector !== null
@@ -523,35 +314,13 @@ export default function Home() {
       document.addEventListener("click", handleClickOutside);
     }
 
-    // Cleanup: remove event listener when component unmounts or selectors close
     return () => {
       document.removeEventListener("click", handleClickOutside);
     };
   }, [openAssigneeSelector, openCategoryAssigneeSelector]);
 
-  /* ============================================
-     FUNCTION - Add New Chore
-     ============================================
-     This function creates a new chore and adds it to the chores array.
-     
-     State changes explained:
-     1. setChores: Adds the new chore to the array
-        - Uses spread operator (...) to copy existing chores
-        - Adds the new chore at the end
-        - React detects this change and re-renders the component
-     
-     2. setNewChoreTitle: Clears the input field
-        - Resets to empty string so user can type a new chore
-     
-     3. setIsAddingChore: Hides the input form
-        - Sets to false to hide the form after submission
-        - The empty state will disappear because chores.length > 0
-  */
   const handleAddChore = async () => {
-    // Don't add empty chores - check if there's actual text
-    if (newChoreTitle.trim() === "") {
-      return; // Exit early if input is empty
-    }
+    if (newChoreTitle.trim() === "") return;
 
     setIsLoading(true);
     setError(null);
@@ -559,7 +328,6 @@ export default function Home() {
     try {
       const { supabase } = await import("@/lib/supabaseClient");
 
-      // Insert new chore into Supabase (use snake_case for DB)
       const { data, error: insertError } = await supabase
         .from("chores")
         .insert({
@@ -574,7 +342,6 @@ export default function Home() {
 
       if (insertError) throw insertError;
 
-      // Transform DB response to camelCase for app state (only include needed fields)
       const choreForState: Chore = {
         id: data.id,
         title: data.title,
@@ -584,10 +351,7 @@ export default function Home() {
         categoryId: data.category_id || null,
       };
 
-      // Add to local state
       setChores([...chores, choreForState]);
-
-      // Clear the input field and category selection
       setNewChoreTitle("");
       setNewChoreCategoryId(undefined);
       setIsAddingChore(false);
@@ -601,23 +365,8 @@ export default function Home() {
     }
   };
 
-  /* ============================================
-     FUNCTION - Add Chore Within Category (Contextual)
-     ============================================
-     This function creates a chore directly within a specific category.
-     It's triggered from the inline "+ Add Chore" button inside a category section.
-     
-     CONTEXTUAL CREATION BENEFITS:
-     - Category is pre-selected (no dropdown needed)
-     - Faster workflow - less clicks
-     - Clear visual context - user sees exactly where chore will appear
-     - Better organization - encourages categorization
-  */
   const handleAddChoreInCategory = async (categoryId: string) => {
-    // Don't add empty chores
-    if (newChoreTitleInCategory.trim() === "") {
-      return;
-    }
+    if (newChoreTitleInCategory.trim() === "") return;
 
     setIsLoading(true);
     setError(null);
@@ -625,7 +374,6 @@ export default function Home() {
     try {
       const { supabase } = await import("@/lib/supabaseClient");
 
-      // Insert new chore into Supabase (use snake_case for DB)
       const { data, error: insertError } = await supabase
         .from("chores")
         .insert({
@@ -640,7 +388,6 @@ export default function Home() {
 
       if (insertError) throw insertError;
 
-      // Transform DB response to camelCase for app state (only include needed fields)
       const choreForState: Chore = {
         id: data.id,
         title: data.title,
@@ -650,10 +397,7 @@ export default function Home() {
         categoryId: data.category_id || null,
       };
 
-      // Add to local state
       setChores([...chores, choreForState]);
-
-      // Clear input and hide form
       setNewChoreTitleInCategory("");
       setAddingChoreInCategory(null);
     } catch (err: unknown) {
@@ -666,31 +410,9 @@ export default function Home() {
     }
   };
 
-  /* ============================================
-     FUNCTION - Quick Add Assignee from Chore Selector
-     ============================================
-     This function creates a new assignee directly from a chore's assignee selector.
-     It eliminates the need to:
-     1. Close the chore selector
-     2. Scroll to the assignees section
-     3. Add the assignee there
-     4. Scroll back to the chore
-     5. Reopen the selector
-     6. Finally assign them
-     
-     CONTEXTUAL CREATION BENEFITS:
-     - Creates assignee AND assigns them in one action
-     - Maintains user focus - no navigation needed
-     - Faster workflow - reduces clicks from 6+ to 2
-     - Better UX - action completes in context
-  */
   const handleQuickAddAssignee = async (choreId: string) => {
-    // Don't add empty assignees
-    if (newAssigneeNameInChore.trim() === "") {
-      return;
-    }
+    if (newAssigneeNameInChore.trim() === "") return;
 
-    // Check for duplicate names
     const nameExists = assignees.some(
       (assignee) =>
         assignee.name.toLowerCase() ===
@@ -707,7 +429,6 @@ export default function Home() {
     try {
       const { supabase } = await import("@/lib/supabaseClient");
 
-      // Create new assignee in Supabase
       const { data: newAssignee, error: insertError } = await supabase
         .from("assignees")
         .insert({
@@ -719,15 +440,12 @@ export default function Home() {
 
       if (insertError) throw insertError;
 
-      // Add to local assignees array
       setAssignees([...assignees, newAssignee]);
 
-      // Update chore to include the new assignee
       const chore = chores.find((c) => c.id === choreId);
       if (chore) {
         const newAssigneeIds = [...chore.assigneeIds, newAssignee.id];
 
-        // Update in Supabase (use snake_case for DB)
         const { error: updateError } = await supabase
           .from("chores")
           .update({ assignee_ids: newAssigneeIds })
@@ -735,7 +453,6 @@ export default function Home() {
 
         if (updateError) throw updateError;
 
-        // Update local state
         setChores(
           chores.map((c) =>
             c.id === choreId ? { ...c, assigneeIds: newAssigneeIds } : c
@@ -743,7 +460,6 @@ export default function Home() {
         );
       }
 
-      // Clear input and hide form
       setNewAssigneeNameInChore("");
       setAddingAssigneeInChore(null);
     } catch (err: unknown) {
@@ -756,25 +472,10 @@ export default function Home() {
     }
   };
 
-  /* ============================================
-     FUNCTION - Toggle Chore Completion
-     ============================================
-     This function toggles a chore's completed status between true and false.
-     
-     State changes explained:
-     - setChores: Updates the specific chore's completed property
-       - Uses .map() to create a new array (React needs new references to detect changes)
-       - Finds the chore with matching ID
-       - Creates a new chore object with toggled completed status
-       - Keeps all other chores unchanged
-       - React detects the change and re-renders with updated styling
-  */
   const handleToggleChore = async (choreId: string) => {
-    // Find the chore to toggle
     const chore = chores.find((c) => c.id === choreId);
     if (!chore) return;
 
-    // Optimistic UI update - update immediately for responsiveness
     setChores(
       chores.map((c) =>
         c.id === choreId ? { ...c, completed: !c.completed } : c
@@ -784,7 +485,6 @@ export default function Home() {
     try {
       const { supabase } = await import("@/lib/supabaseClient");
 
-      // Update completed status in Supabase
       const { error: updateError } = await supabase
         .from("chores")
         .update({ completed: !chore.completed })
@@ -793,7 +493,6 @@ export default function Home() {
       if (updateError) throw updateError;
     } catch (err: unknown) {
       console.error("Failed to toggle chore:", err);
-      // Revert optimistic update on error
       setChores(
         chores.map((c) =>
           c.id === choreId ? { ...c, completed: chore.completed } : c
@@ -805,44 +504,16 @@ export default function Home() {
     }
   };
 
-  /* ============================================
-     FUNCTION - Add New Assignee
-     ============================================
-     This function creates a new assignee and adds it to the assignees array.
-     
-     WHY ASSIGNEES ARE SEPARATE FROM CHORES:
-     - Reusability: One person can be assigned to many chores
-     - Data Normalization: Store person info once, reference by ID
-     - Easy Updates: Change a person's name in one place, updates everywhere
-     - Relationships: Chores reference assignees by ID (assigneeIds array)
-     - Scalability: Can add properties (email, avatar) without touching chores
-     
-     State changes explained:
-     1. setAssignees: Adds the new assignee to the array
-        - Uses spread operator (...) to copy existing assignees
-        - Adds the new assignee at the end
-        - React detects this change and re-renders the component
-     
-     2. setNewAssigneeName: Clears the input field
-        - Resets to empty string so user can type a new assignee
-     
-     3. setIsAddingAssignee: Hides the input form
-        - Sets to false to hide the form after submission
-  */
   const handleAddAssignee = async () => {
-    // Don't add empty assignees - check if there's actual text
-    if (newAssigneeName.trim() === "") {
-      return; // Exit early if input is empty
-    }
+    if (newAssigneeName.trim() === "") return;
 
-    // Check for duplicate names (optional - prevents confusion)
     const nameExists = assignees.some(
       (assignee) =>
         assignee.name.toLowerCase() === newAssigneeName.trim().toLowerCase()
     );
     if (nameExists) {
       setError("An assignee with this name already exists.");
-      return; // Exit early if name already exists
+      return;
     }
 
     setIsLoading(true);
@@ -851,7 +522,6 @@ export default function Home() {
     try {
       const { supabase } = await import("@/lib/supabaseClient");
 
-      // Insert new assignee into Supabase
       const { data, error: insertError } = await supabase
         .from("assignees")
         .insert({
@@ -863,10 +533,7 @@ export default function Home() {
 
       if (insertError) throw insertError;
 
-      // Add to local state
       setAssignees([...assignees, data]);
-
-      // Clear the input field
       setNewAssigneeName("");
       setIsAddingAssignee(false);
     } catch (err: unknown) {
@@ -879,28 +546,8 @@ export default function Home() {
     }
   };
 
-  /* ============================================
-     FUNCTION - Add New Category
-     ============================================
-     This function creates a new category and adds it to the categories array.
-     
-     State changes explained:
-     1. setCategories: Adds the new category to the array
-        - Uses spread operator (...) to copy existing categories
-        - Adds the new category at the end
-        - React detects this change and re-renders the component
-     
-     2. setNewCategoryName: Clears the input field
-        - Resets to empty string so user can type a new category
-     
-     3. setIsAddingCategory: Hides the input form
-        - Sets to false to hide the form after submission
-  */
   const handleAddCategory = async () => {
-    // Don't add empty categories - check if there's actual text
-    if (newCategoryName.trim() === "") {
-      return; // Exit early if input is empty
-    }
+    if (newCategoryName.trim() === "") return;
 
     setIsLoading(true);
     setError(null);
@@ -908,7 +555,6 @@ export default function Home() {
     try {
       const { supabase } = await import("@/lib/supabaseClient");
 
-      // Insert new category into Supabase (use snake_case for DB)
       const { data, error: insertError } = await supabase
         .from("categories")
         .insert({
@@ -921,7 +567,6 @@ export default function Home() {
 
       if (insertError) throw insertError;
 
-      // Transform DB response to camelCase for app state (only include needed fields)
       const categoryForState: Category = {
         id: data.id,
         name: data.name,
@@ -930,10 +575,7 @@ export default function Home() {
         isOpen: true,
       };
 
-      // Add to local state with isOpen UI property
       setCategories([...categories, categoryForState]);
-
-      // Clear the input field
       setNewCategoryName("");
       setIsAddingCategory(false);
     } catch (err: unknown) {
@@ -946,23 +588,7 @@ export default function Home() {
     }
   };
 
-  /* ============================================
-     FUNCTION - Toggle Assignee on Category
-     ============================================
-     This function adds or removes an assignee from a category's assigneeIds array.
-     Category assignees serve as DEFAULT assignees for all chores in that category.
-     
-     INHERITANCE LOGIC:
-     - Categories have default assignees (category.assigneeIds)
-     - Chores inherit these assignees UNLESS they have their own direct assignments
-     - If a chore has assigneeIds.length === 0, it inherits from its category
-     - If a chore has assigneeIds.length > 0, it uses its own assignments (override)
-     
-     This allows:
-     - Quick assignment of assignees to entire categories (e.g., "Kitchen" → assigned to Alice)
-     - Individual chore overrides when needed (e.g., "Deep clean oven" → assigned to Bob)
-     - Easy bulk management without losing granular control
-  */
+  // Chores inherit category assignees unless they have their own
   const handleToggleCategoryAssignee = async (
     categoryId: string,
     assigneeId: string
@@ -975,7 +601,6 @@ export default function Home() {
       ? category.assigneeIds.filter((id) => id !== assigneeId)
       : [...category.assigneeIds, assigneeId];
 
-    // Optimistic UI update
     setCategories(
       categories.map((cat) =>
         cat.id === categoryId ? { ...cat, assigneeIds: newAssigneeIds } : cat
@@ -985,7 +610,6 @@ export default function Home() {
     try {
       const { supabase } = await import("@/lib/supabaseClient");
 
-      // Update category assignees in Supabase (use snake_case for DB)
       const { error: updateError } = await supabase
         .from("categories")
         .update({ assignee_ids: newAssigneeIds })
@@ -994,7 +618,6 @@ export default function Home() {
       if (updateError) throw updateError;
     } catch (err: unknown) {
       console.error("Failed to update category assignees:", err);
-      // Revert optimistic update
       setCategories(
         categories.map((cat) =>
           cat.id === categoryId
@@ -1008,83 +631,32 @@ export default function Home() {
     }
   };
 
-  /* ============================================
-     FUNCTION - Get Effective Assignees for a Chore
-     ============================================
-     This helper function determines which assignees should be shown for a chore.
-     
-     INHERITANCE LOGIC EXPLAINED:
-     1. If chore has direct assignees (assigneeIds.length > 0):
-        - Use chore's assignees (OVERRIDE mode)
-        - Return: { assigneeIds: chore.assigneeIds, isInherited: false }
-     
-     2. If chore has NO direct assignees AND belongs to a category:
-        - Inherit category's assignees (INHERITED mode)
-        - Return: { assigneeIds: category.assigneeIds, isInherited: true }
-     
-     3. If chore has NO direct assignees AND NO category:
-        - No assignees (UNASSIGNED mode)
-        - Return: { assigneeIds: [], isInherited: false }
-     
-     The isInherited flag allows us to style inherited assignees differently
-     (e.g., lighter color, italic text, or "inherited" label)
-  */
   const getEffectiveAssignees = (
     chore: Chore
   ): { assigneeIds: string[]; isInherited: boolean } => {
-    // If chore has direct assignees, use them (override mode)
     if (chore.assigneeIds.length > 0) {
       return {
         assigneeIds: chore.assigneeIds,
-        isInherited: false, // These are directly assigned, not inherited
+        isInherited: false,
       };
     }
 
-    // If chore belongs to a category, inherit category's assignees
     if (chore.categoryId) {
       const category = categories.find((cat) => cat.id === chore.categoryId);
       if (category && category.assigneeIds.length > 0) {
         return {
           assigneeIds: category.assigneeIds,
-          isInherited: true, // These are inherited from category
+          isInherited: true,
         };
       }
     }
 
-    // No assignees (neither direct nor inherited)
     return {
       assigneeIds: [],
       isInherited: false,
     };
   };
 
-  /* ============================================
-     FUNCTION - Toggle Assignee on Chore
-     ============================================
-     This function adds or removes an assignee from a chore's assigneeIds array.
-     
-     IMPORTANT: Direct chore assignments OVERRIDE category defaults
-     - When you assign someone to a chore, that chore stops inheriting from its category
-     - To restore inheritance, you must remove ALL direct assignees from the chore
-     
-     STATE UPDATE EXPLAINED SIMPLY:
-     1. User clicks an assignee in the selector
-     2. handleToggleAssignee is called with chore ID and assignee ID
-     3. setChores updates the state:
-        - Finds the chore with matching ID
-        - Checks if assignee ID is already in assigneeIds array
-        - If yes: Removes it (unassign)
-        - If no: Adds it (assign)
-        - Creates a new array (React needs this to detect changes)
-        - Other chores stay unchanged
-     4. React re-renders the component
-     5. The assignee badges update to show the new assignment state
-     
-     MULTIPLE ASSIGNEES:
-     - assigneeIds is an array, so multiple assignees can be assigned
-     - Each assignee can be independently added or removed
-     - The array is updated using filter (remove) or spread (add)
-  */
   const handleToggleAssignee = async (choreId: string, assigneeId: string) => {
     const chore = chores.find((c) => c.id === choreId);
     if (!chore) return;
@@ -1094,7 +666,6 @@ export default function Home() {
       ? chore.assigneeIds.filter((id) => id !== assigneeId)
       : [...chore.assigneeIds, assigneeId];
 
-    // Optimistic UI update
     setChores(
       chores.map((c) =>
         c.id === choreId ? { ...c, assigneeIds: newAssigneeIds } : c
@@ -1104,7 +675,6 @@ export default function Home() {
     try {
       const { supabase } = await import("@/lib/supabaseClient");
 
-      // Update chore assignees in Supabase (use snake_case for DB)
       const { error: updateError } = await supabase
         .from("chores")
         .update({ assignee_ids: newAssigneeIds })
@@ -1113,7 +683,6 @@ export default function Home() {
       if (updateError) throw updateError;
     } catch (err: unknown) {
       console.error("Failed to update chore assignees:", err);
-      // Revert optimistic update
       setChores(
         chores.map((c) =>
           c.id === choreId ? { ...c, assigneeIds: chore.assigneeIds } : c
@@ -1125,31 +694,14 @@ export default function Home() {
     }
   };
 
-  /* ============================================
-     FUNCTION - Delete Chore
-     ============================================
-     This function removes a chore from the chores array permanently.
-     
-     STATE UPDATE EXPLAINED:
-     1. User clicks delete button on a chore
-     2. handleDeleteChore is called with the chore ID
-     3. setChores updates the state:
-        - Filters out the chore with matching ID
-        - All other chores remain in the array
-     4. React re-renders and the chore is gone
-     
-     NOTE: This is permanent - no undo functionality (yet)
-  */
   const handleDeleteChore = async (choreId: string) => {
     if (!confirm("Delete this chore?")) return;
 
-    // Optimistic UI update
     setChores(chores.filter((chore) => chore.id !== choreId));
 
     try {
       const { supabase } = await import("@/lib/supabaseClient");
 
-      // Delete from Supabase
       const { error: deleteError } = await supabase
         .from("chores")
         .delete()
@@ -1158,7 +710,6 @@ export default function Home() {
       if (deleteError) throw deleteError;
     } catch (err: unknown) {
       console.error("Failed to delete chore:", err);
-      // Could revert optimistic update here, but for simplicity we'll just show error
       setError(
         getErrorMessage(err) ||
           "Failed to delete chore. Please refresh the page."
@@ -1166,22 +717,6 @@ export default function Home() {
     }
   };
 
-  /* ============================================
-     FUNCTION - Delete Category
-     ============================================
-     This function removes a category from the categories array.
-     
-     IMPORTANT: Chores in this category become uncategorized (categoryId = undefined)
-     This prevents orphaned chores that reference non-existent categories.
-     
-     STATE UPDATE EXPLAINED:
-     1. User clicks delete button on a category
-     2. handleDeleteCategory is called with the category ID
-     3. Two state updates happen:
-        a. setCategories: Removes the category from the array
-        b. setChores: Updates all chores in that category to be uncategorized
-     4. React re-renders with category removed and chores moved to uncategorized
-  */
   const handleDeleteCategory = async (categoryId: string) => {
     const category = categories.find((c) => c.id === categoryId);
     if (!category) return;
@@ -1193,7 +728,6 @@ export default function Home() {
     )
       return;
 
-    // Optimistic UI update
     setCategories(categories.filter((c) => c.id !== categoryId));
     setChores(
       chores.map((chore) =>
@@ -1204,7 +738,6 @@ export default function Home() {
     try {
       const { supabase } = await import("@/lib/supabaseClient");
 
-      // Move all chores in this category to uncategorized (use snake_case for DB)
       const { error: updateError } = await supabase
         .from("chores")
         .update({ category_id: null })
@@ -1212,7 +745,6 @@ export default function Home() {
 
       if (updateError) throw updateError;
 
-      // Delete the category
       const { error: deleteError } = await supabase
         .from("categories")
         .delete()
@@ -1228,26 +760,10 @@ export default function Home() {
     }
   };
 
-  /* ============================================
-     FUNCTION - Move Chore to Category
-     ============================================
-     This function assigns a chore to a specific category (or removes categorization).
-     Used to move uncategorized chores into categories or recategorize existing chores.
-     
-     STATE UPDATE EXPLAINED:
-     1. User selects a category from the dropdown on an uncategorized chore
-     2. handleMoveChoreToCategory is called with chore ID and category ID
-     3. setChores updates the state:
-        - Finds the chore with matching ID
-        - Updates its categoryId property
-        - Pass undefined to remove categorization (move back to uncategorized)
-     4. React re-renders and the chore appears in the new category
-  */
   const handleMoveChoreToCategory = async (
     choreId: string,
     categoryId: string | null
   ) => {
-    // Optimistic UI update
     setChores(
       chores.map((chore) =>
         chore.id === choreId ? { ...chore, categoryId } : chore
@@ -1257,7 +773,6 @@ export default function Home() {
     try {
       const { supabase } = await import("@/lib/supabaseClient");
 
-      // Update chore category in Supabase (use snake_case for DB)
       const { error: updateError } = await supabase
         .from("chores")
         .update({ category_id: categoryId })
@@ -1272,57 +787,24 @@ export default function Home() {
     }
   };
 
-  /* ============================================
-     FUNCTION - Toggle Category Accordion
-     ============================================
-     This function toggles a category's isOpen status (accordion expand/collapse).
-     
-     ACCORDION LOGIC EXPLAINED:
-     - An accordion is a UI pattern where sections can be expanded or collapsed
-     - When isOpen is true: The category section is expanded (chores are visible)
-     - When isOpen is false: The category section is collapsed (chores are hidden)
-     - Clicking the category header toggles between these two states
-     - Multiple categories can be open at the same time (each has its own isOpen state)
-     
-     STATE UPDATE EXPLAINED SIMPLY:
-     1. User clicks category header
-     2. handleToggleCategory is called with the category's ID
-     3. setCategories updates the state:
-        - Finds the category with matching ID
-        - Flips isOpen: true → false, or false → true
-        - Creates a new array (React needs this to detect changes)
-        - Other categories stay unchanged
-     4. React re-renders the component
-     5. The chevron rotates and the chore list shows/hides based on the new isOpen value
-  */
   const handleToggleCategory = (categoryId: string) => {
-    // Update the categories array by mapping over each category
-    // Note: isOpen is UI-only state, not saved to Supabase
     setCategories(
       categories.map((category) => {
-        // If this is the category we want to toggle
         if (category.id === categoryId) {
-          // Return a new category object with toggled isOpen status
-          // Spread operator (...) copies all existing properties
-          // Then we override just the isOpen property
           return {
             ...category,
-            isOpen: !category.isOpen, // Toggle: true becomes false, false becomes true
+            isOpen: !category.isOpen,
           };
         }
-        // Return unchanged category if ID doesn't match
-        // This allows multiple categories to have independent open/closed states
         return category;
       })
     );
   };
 
-  // Show login screen if user is not authenticated
   if (!isAuthenticated) {
     return <LoginScreen onLogin={handleLogin} />;
   }
 
-  // Show loading screen while fetching data
   if (isLoading) {
     return (
       <div className="flex min-h-screen items-center justify-center font-sans">
@@ -1341,9 +823,7 @@ export default function Home() {
 
   return (
     <div className="flex min-h-screen items-center justify-center font-sans">
-      {/* Main content container with centered layout and max width */}
       <main className="flex min-h-screen w-full max-w-3xl flex-col items-start py-16 px-8">
-        {/* Error Banner - Shows at top if there's an error */}
         {error && (
           <div className="w-full mb-6 p-4 rounded-xl bg-red-50 dark:bg-red-900/20 border-2 border-red-200 dark:border-red-800">
             <div className="flex items-start justify-between">
@@ -1368,15 +848,12 @@ export default function Home() {
           </div>
         )}
 
-        {/* Header with title and household info */}
         <div className="w-full mb-8">
-          {/* Title and Add Button Row */}
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-4xl font-semibold text-black dark:text-zinc-50">
               Chore Tracker
             </h1>
 
-            {/* Add Chore button */}
             {chores.length > 0 && !isAddingChore && (
               <button
                 onClick={() => {
@@ -1390,7 +867,6 @@ export default function Home() {
             )}
           </div>
 
-          {/* Household Info Card - Prominent & Clear */}
           <div className="p-4 rounded-xl bg-white/60 dark:bg-white/10 backdrop-blur-md border border-white/30 shadow-sm">
             <div className="flex items-center justify-between">
               <div>
@@ -1410,9 +886,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Action Buttons */}
               <div className="flex items-center gap-2">
-                {/* Copy Code Button */}
                 <button
                   onClick={() => {
                     navigator.clipboard.writeText(householdId || "");
@@ -1436,7 +910,6 @@ export default function Home() {
                   )}
                 </button>
 
-                {/* Sign Out Button */}
                 <button
                   onClick={handleSignOut}
                   disabled={isLoading}
