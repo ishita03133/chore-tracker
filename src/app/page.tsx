@@ -262,7 +262,6 @@ export default function Home() {
   
   // Login handler - called when user successfully joins a household
   const handleLogin = (name: string, household: string, uid: string) => {
-    console.log("🔍 DIAGNOSTIC: User logged in", { name, household, uid });
     setUserName(name);
     setHouseholdId(household);
     setUserId(uid);
@@ -286,48 +285,6 @@ export default function Home() {
     }
   };
 
-  // Manual refresh function for debugging sync issues
-  const handleManualRefresh = async () => {
-    if (!isAuthenticated || !householdId) return;
-    
-    setIsLoading(true);
-    setError(null);
-    
-    console.log("🔄 DIAGNOSTIC: Manual refresh triggered for household", householdId);
-    
-    try {
-      const { supabase } = await import("@/lib/supabaseClient");
-      
-      // Fetch all chores fresh from database
-      const { data: choresData, error: choresError } = await supabase
-        .from("chores")
-        .select("*")
-        .eq("household_id", householdId);
-      
-      if (choresError) throw choresError;
-      
-      setChores((choresData || []).map((chore: ChoreDB) => ({
-        id: chore.id,
-        title: chore.title,
-        completed: chore.completed,
-        household_id: chore.household_id,
-        assigneeIds: chore.assignee_ids || [],
-        categoryId: chore.category_id || null
-      })));
-      
-      console.log("✅ DIAGNOSTIC: Refreshed - found", choresData?.length || 0, "chores");
-      
-      // Show success message
-      alert(`Refreshed! Found ${choresData?.length || 0} chores in household ${householdId}`);
-      
-    } catch (err: unknown) {
-      console.error("Failed to refresh:", err);
-      setError(getErrorMessage(err) || "Failed to refresh. Please try again.");
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
   // Delete assignee handler - removes assignee and clears from chores/categories
   const handleDeleteAssignee = async (assigneeId: string) => {
     const assignee = assignees.find((a) => a.id === assigneeId);
@@ -430,9 +387,6 @@ export default function Home() {
       setIsLoading(true);
       setError(null);
       
-      // DIAGNOSTIC: Log what we're loading
-      console.log("🔍 DIAGNOSTIC: Loading data for household", householdId);
-      
       try {
         const { supabase } = await import("@/lib/supabaseClient");
         
@@ -444,7 +398,6 @@ export default function Home() {
         
         if (assigneesError) throw assigneesError;
         setAssignees(assigneesData || []);
-        console.log("✅ DIAGNOSTIC: Loaded assignees", assigneesData?.length || 0);
         
         // Fetch categories for this household
         const { data: categoriesData, error: categoriesError } = await supabase
@@ -461,7 +414,6 @@ export default function Home() {
           assigneeIds: cat.assignee_ids || [],
           isOpen: true 
         })));
-        console.log("✅ DIAGNOSTIC: Loaded categories", categoriesData?.length || 0);
         
         // Fetch chores for this household
         const { data: choresData, error: choresError } = await supabase
@@ -479,7 +431,6 @@ export default function Home() {
           assigneeIds: chore.assignee_ids || [],
           categoryId: chore.category_id || null
         })));
-        console.log("✅ DIAGNOSTIC: Loaded chores", choresData?.length || 0, choresData);
         
       } catch (err: unknown) {
         console.error("Failed to load data from Supabase:", err);
@@ -538,13 +489,6 @@ export default function Home() {
       return; // Exit early if input is empty
     }
     
-    // DIAGNOSTIC: Log what we're trying to save
-    console.log("🔍 DIAGNOSTIC: Attempting to add chore", {
-      title: newChoreTitle.trim(),
-      householdId: householdId,
-      isAuthenticated: isAuthenticated
-    });
-    
     setIsLoading(true);
     setError(null);
     
@@ -564,9 +508,6 @@ export default function Home() {
         .select()
         .single();
       
-      // DIAGNOSTIC: Log the result
-      console.log("✅ DIAGNOSTIC: Chore added successfully", data);
-      
       if (insertError) throw insertError;
       
       // Transform DB response to camelCase for app state (only include needed fields)
@@ -583,9 +524,9 @@ export default function Home() {
       setChores([...chores, choreForState]);
       
       // Clear the input field and category selection
-      setNewChoreTitle("");
+    setNewChoreTitle("");
       setNewChoreCategoryId(undefined);
-      setIsAddingChore(false);
+    setIsAddingChore(false);
       
     } catch (err: unknown) {
       console.error("Failed to add chore:", err);
@@ -1367,17 +1308,6 @@ export default function Home() {
                       <span>Copy Code</span>
                     </>
                   )}
-                </button>
-                
-                {/* Refresh Button (for debugging sync issues) */}
-                <button
-                  onClick={handleManualRefresh}
-                  disabled={isLoading}
-                  className="px-4 py-2 bg-white/40 hover:bg-blue-50/60 dark:bg-white/10 dark:hover:bg-blue-900/30 border border-white/30 hover:border-blue-300/50 dark:hover:border-blue-700/50 text-gray-700 hover:text-blue-600 dark:text-gray-300 dark:hover:text-blue-400 rounded-lg transition-all shadow-sm font-medium text-sm flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                  title="Refresh chores from database"
-                >
-                  <span>🔄</span>
-                  <span>Refresh</span>
                 </button>
                 
                 {/* Sign Out Button */}
